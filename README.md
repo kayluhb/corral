@@ -29,9 +29,9 @@ prompt. It exits when iTerm quits and starts again with the next claude event.
 
 | Key | Function | Does |
 |---|---|---|
-| ⌃⌥⌘W | `corral_next_waiting` | Focus the session that has waited longest for you. Press again to cycle. |
-| ⌃⌥⌘D | `corral_next_done` | Same, for finished sessions you haven't looked at yet. |
-| ⌃⌥⌘P | `corral_pick` | Open an fzf switcher in a temporary split. Enter jumps to the session; Esc cancels. |
+| ⌘J | `corral_next_waiting` | Focus the session that has waited longest for you. Press again to cycle. |
+| ⌘⇧J | `corral_next_done` | Same, for finished sessions you haven't looked at yet. |
+| ⌘P | `corral_pick` | Open an fzf switcher in a temporary split. Enter jumps to the session; Esc cancels. |
 
 ## States
 

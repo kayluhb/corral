@@ -1,5 +1,6 @@
 import base64
 
+import iterm2
 from iterm2 import api_pb2
 
 from corral import iterm_setup
@@ -88,3 +89,13 @@ def test_add_bindings_never_overwrites_a_taken_key():
     keymap, skipped = iterm_setup.add_bindings(taken)
     assert keymap[key] == {"Action": 12, "Text": "x"}
     assert len(skipped) == 1
+
+
+def test_hotkeys_are_cmd_j_cmd_shift_j_cmd_p():
+    cmd, shift = 0x100000, 0x20000
+    j, p = iterm2.Keycode.ANSI_J.value, iterm2.Keycode.ANSI_P.value
+    assert {v["Text"]: k for k, v in iterm_setup.BINDINGS.items()} == {
+        "corral_next_waiting(session_id: id)": f"{hex(ord('j'))}-{hex(cmd)}-{hex(j)}-0x1",
+        "corral_next_done(session_id: id)": f"{hex(ord('J'))}-{hex(cmd | shift)}-{hex(j)}-0x1",
+        "corral_pick(session_id: id)": f"{hex(ord('p'))}-{hex(cmd)}-{hex(p)}-0x1",
+    }

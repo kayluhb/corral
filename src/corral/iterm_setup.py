@@ -21,21 +21,22 @@ from corral import daemon
 COMPONENT_CLASS = "iTermStatusBarRPCProvidedTextComponent"
 GIT_COMPONENT = {"class": "iTermStatusBarGitComponent", "configuration": {"knobs": {}}}
 REQUEST_KEY = "registration request v2"
-HYPER = [Modifier.CONTROL, Modifier.OPTION, Modifier.COMMAND]
-_KEYS = [  # ⌃⌥⌘W / ⌃⌥⌘D / ⌃⌥⌘P
-    (ord("w"), Keycode.ANSI_W, "corral_next_waiting(session_id: id)", "⌃⌥⌘W"),
-    (ord("d"), Keycode.ANSI_D, "corral_next_done(session_id: id)", "⌃⌥⌘D"),
-    (ord("p"), Keycode.ANSI_P, "corral_pick(session_id: id)", "⌃⌥⌘P"),
+CMD, SHIFT = Modifier.COMMAND, Modifier.SHIFT
+# A key binding beats the menu item on the same key (⌘J Jump to Selection, ⌘P Print).
+_KEYS = [  # (character as iTerm records it, modifiers, keycode, invocation, label)
+    ("j", [CMD], Keycode.ANSI_J, "corral_next_waiting(session_id: id)", "⌘J"),
+    ("J", [CMD, SHIFT], Keycode.ANSI_J, "corral_next_done(session_id: id)", "⌘⇧J"),
+    ("p", [CMD], Keycode.ANSI_P, "corral_pick(session_id: id)", "⌘P"),
 ]
 
 
-def _binding(char: int, keycode: Keycode, invocation: str) -> KeyBinding:
+def _binding(char: str, mods: list[Modifier], keycode: Keycode, invocation: str) -> KeyBinding:
     action = BindingAction.INVOKE_SCRIPT_FUNCTION
-    return KeyBinding(char, HYPER, keycode, action, invocation, None, None)
+    return KeyBinding(ord(char), mods, keycode, action, invocation, None, None)
 
 
-BINDINGS = {b.key: b.encode for b in (_binding(c, k, i) for c, k, i, _ in _KEYS)}
-LABELS = {i: label for _, _, i, label in _KEYS}
+BINDINGS = {b.key: b.encode for b in (_binding(c, m, k, i) for c, m, k, i, _ in _KEYS)}
+LABELS = {i: label for _, _, _, i, label in _KEYS}
 
 
 def component_entry() -> dict:
