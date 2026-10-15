@@ -207,7 +207,7 @@ def status_component() -> iterm2.StatusBarComponent:
         short_description="corral",
         detailed_description="Claude session status (waiting / working / done)",
         knobs=[],
-        exemplar="✋2 ⚙3 ✓1",
+        exemplar="1🐄 hydrogen  [2🐎 corral]  3🌵 lasso",
         update_cadence=1.0,
         identifier=COMPONENT_ID,
     )

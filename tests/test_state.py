@@ -108,8 +108,8 @@ def test_project_name():
 
 
 def test_attention_text():
-    assert state.attention_text(mk(st=WAITING)) == "proj: needs you"
-    assert state.attention_text(mk(st=DONE)) == "proj: done"
+    assert state.attention_text(mk(st=WAITING)) == "Whoa there, proj needs you"
+    assert state.attention_text(mk(st=DONE)) == "Yeehaw! proj's back at the corral"
 
 
 # --- ordering / navigation / summary ---------------------------------------
@@ -144,9 +144,9 @@ def test_next_target_none_when_empty():
 
 def test_summary():
     ss = [mk("a", WAITING), mk("b", WAITING), mk("c", WORKING), mk("d", DONE), mk("e", IDLE)]
-    assert state.summary(ss) == "✋2 ⚙1 ✓1"
-    assert state.summary([mk("a", WORKING)]) == "⚙1"
-    assert state.summary([]) == "·"
+    assert state.summary(ss) == "🐄2 🐎1 🌵1"
+    assert state.summary([mk("a", WORKING)]) == "🐎1"
+    assert state.summary([]) == "🤠 quiet on the range"
 
 
 def test_tab_color_key():
@@ -176,36 +176,13 @@ def test_status_variants_longest_first():
     ]
     tabs = {"a": 3, "b": 4, "c": 6}
     assert state.status_variants(ss, tabs, "c") == [
-        "3✋ hydrogen  4· sanity  [6✓ lasso]",
-        "3✋ hydrogen  [6✓ lasso]",
-        "✋1 ✓1",
+        "3🐄 hydrogen  4💤 sanity  [6🌵 lasso]",
+        "3🐄 hydrogen  [6🌵 lasso]",
+        "🐄1 🌵1",
     ]
 
 
 def test_status_variants_dedupes_and_handles_empty():
-    assert state.status_variants([mk("a", WORKING, cwd="/p/x")], {}, None) == ["⚙ x", "⚙1"]
-    assert state.status_variants([mk("a", IDLE, cwd="/p/x")], {}, None) == ["· x", "·"]
-    assert state.status_variants([], {}, None) == ["·"]
-
-
-def test_status_shows_running_tool_for_working_sessions_only():
-    working = mk("a", WORKING, cwd="/p/x")
-    working.tool = "Bash"
-    waiting = mk("b", WAITING, cwd="/p/y")
-    waiting.tool = "Edit"
-    assert state.status_variants([working, waiting], {}, None)[0] == "⚙ x:Bash  ✋ y"
-
-
-def test_pre_tool_use_records_tool_and_post_clears_it():
-    pre = {"hook_event_name": "PreToolUse", "tool_name": "Bash"}
-    s = state.transition(mk(st=WORKING), pre, "A", state.target_state(pre), 1.0)
-    assert s.state == WORKING and s.tool == "Bash"
-    post = {"hook_event_name": "PostToolUse", "tool_name": "Bash"}
-    assert state.transition(s, post, "A", WORKING, 2.0).tool == ""
-    stop = {"hook_event_name": "Stop"}
-    assert state.transition(s, stop, "A", DONE, 2.0).tool == ""
-
-
-def test_mcp_tool_names_are_shortened():
-    pre = {"hook_event_name": "PreToolUse", "tool_name": "mcp__chrome-devtools__take_screenshot"}
-    assert state.transition(mk(st=WORKING), pre, "A", WORKING, 1.0).tool == "take_screenshot"
+    assert state.status_variants([mk("a", WORKING, cwd="/p/x")], {}, None) == ["🐎 x", "🐎1"]
+    assert state.status_variants([mk("a", IDLE, cwd="/p/x")], {}, None) == ["💤 x", state.QUIET]
+    assert state.status_variants([], {}, None) == [state.QUIET]

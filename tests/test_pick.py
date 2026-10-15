@@ -16,10 +16,10 @@ def test_format_line_is_tab_delimited_with_id_first():
     assert line.split("\t")[0] == "ID-1"
     assert line.count("\t") == 1
     assert "\n" not in line
-    assert "✋" in line and "corral" in line and "1m" in line and "fix the bug" in line
+    assert "🐄" in line and "corral" in line and "1m" in line and "fix the bug" in line
 
 
 def test_parse_choice():
-    assert pick.parse_choice("ID-1\t✋ corral ...\n") == "ID-1"
+    assert pick.parse_choice("ID-1\t🐄 corral ...\n") == "ID-1"
     assert pick.parse_choice("") is None
     assert pick.parse_choice("../x\tjunk") is None

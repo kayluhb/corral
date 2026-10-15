@@ -10,11 +10,18 @@ def add($event; $matcher):
     + [entry($matcher)]
   );
 
+# Events corral no longer uses: drop its entries, and the event if nothing else is left.
+def retire($event):
+  if .hooks[$event] then
+    .hooks[$event] |= [.[] | select(any(.hooks[]?; .command == $cmd) | not)]
+    | if .hooks[$event] == [] then del(.hooks[$event]) else . end
+  else . end;
+
 .hooks = (.hooks // {})
 | add("SessionStart"; null)
 | add("UserPromptSubmit"; null)
-| add("PreToolUse"; null)
 | add("PostToolUse"; null)
 | add("Notification"; "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt")
 | add("Stop"; null)
 | add("SessionEnd"; null)
+| retire("PreToolUse")

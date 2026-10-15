@@ -77,7 +77,7 @@ def test_done_stays_done_and_notifies_while_iterm_in_background():
     put("A", DONE)
     tick(d)
     assert store.read("A").state == DONE
-    assert a.injected and b"done" in a.injected[0]
+    assert a.injected and b"Yeehaw" in a.injected[0]
     assert a.colors[-1] is True
 
 
@@ -115,5 +115,5 @@ def test_status_bar_lists_sessions_in_tab_order():
     put("A", WAITING)
     put("B", WORKING)
     tick(d)
-    assert d.status("C")[0] == "1⚙ B  3✋ A"
-    assert d.status("A")[0] == "1⚙ B  [3✋ A]"
+    assert d.status("C")[0] == "1🐎 B  3🐄 A"
+    assert d.status("A")[0] == "1🐎 B  [3🐄 A]"

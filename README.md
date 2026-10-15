@@ -37,12 +37,15 @@ prompt. It exits when iTerm quits and starts again with the next claude event.
 
 | State | Icon | Tab colour | Meaning |
 |---|---|---|---|
-| waiting | ✋ | amber | Permission prompt, question or agent input needed |
-| working | ⚙ | none | Prompt submitted or tool running |
-| done | ✓ | green | Claude finished. Becomes idle once you focus the tab |
-| idle | · | none | Session open, nothing pending |
+| waiting (a stray) | 🐄 | amber | Permission prompt, question or agent input needed |
+| working (riding) | 🐎 | none | Prompt submitted or tool running |
+| done (back at camp) | 🌵 | green | Claude finished. Becomes idle once you focus the tab |
+| idle | 💤 | none | Session open, nothing pending |
 
-The status bar shows counts, for example `✋2 ⚙3 ✓1`. A colour is never shown on the tab you're
+The status bar lists every claude tab in tab order: its tab number (the ⌘N), state and
+project, with the tab you're in bracketed, for example `1🐄 hydrogen  [2🐎 corral]  3🌵 lasso`.
+When the bar is narrow it drops idle tabs, then falls back to counts (`🐄1 🐎1 🌵1`). With nothing
+going on it reads `🤠 quiet on the range`. A colour is never shown on the tab you're
 currently in. You get a notification only for sessions you're not looking at.
 
 ## Development

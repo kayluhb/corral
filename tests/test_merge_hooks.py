@@ -7,7 +7,6 @@ CMD = "/Users/x/.local/bin/corral-hook"
 EVENTS = [
     "SessionStart",
     "UserPromptSubmit",
-    "PreToolUse",
     "PostToolUse",
     "Notification",
     "Stop",
@@ -78,3 +77,11 @@ def test_upgrades_stale_corral_entry_and_keeps_others():
     (notif,) = corral_entries(out, "Notification")
     assert notif["matcher"] == NOTIFICATION_MATCHER
     assert out["hooks"]["Notification"][0] == old["hooks"]["Notification"][0]
+
+
+def test_removes_retired_pre_tool_use_entry_but_keeps_others():
+    mine = {"hooks": [{"type": "command", "command": CMD}]}
+    other = {"hooks": [{"type": "command", "command": "other"}]}
+    out = merge({"hooks": {"PreToolUse": [other, mine]}})
+    assert out["hooks"]["PreToolUse"] == [other]
+    assert "PreToolUse" not in merge({"hooks": {"PreToolUse": [mine]}})["hooks"]

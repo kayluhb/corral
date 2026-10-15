@@ -14,14 +14,15 @@ IDLE = "idle"
 DELETE = "delete"
 
 PRIORITY = (WAITING, DONE, WORKING, IDLE)
-ICONS = {WAITING: "✋", WORKING: "⚙", DONE: "✓", IDLE: "·"}
+# Ranch theme: a stray needs roping, a rider is out working, back at camp is done.
+ICONS = {WAITING: "🐄", WORKING: "🐎", DONE: "🌵", IDLE: "💤"}
+QUIET = "🤠 quiet on the range"
 SUMMARY_STATES = (WAITING, WORKING, DONE)
 WAITING_NOTIFICATIONS = frozenset(
     {"permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input"}
 )
 LIFECYCLE_EVENTS = frozenset({"SessionStart", "Stop", "SessionEnd"})
 PROMPT_LIMIT = 80
-TOOL_LIMIT = 24
 
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _SPACES = re.compile(r"\s+")
@@ -35,7 +36,6 @@ class Session:
     state: str
     since: float
     last_prompt: str = ""
-    tool: str = ""  # tool running right now (PreToolUse until PostToolUse)
 
 
 def target_state(event: dict) -> str | None:
@@ -44,7 +44,7 @@ def target_state(event: dict) -> str | None:
         return None
     if name == "SessionStart":
         return IDLE
-    if name in ("UserPromptSubmit", "PreToolUse", "PostToolUse"):
+    if name in ("UserPromptSubmit", "PostToolUse"):
         return WORKING
     if name == "Notification":
         kind = event.get("notification_type")
@@ -77,13 +77,7 @@ def transition(
         state=target,
         since=since,
         last_prompt=last_prompt,
-        tool=_tool(event) if name == "PreToolUse" else "",
     )
-
-
-def _tool(event: dict) -> str:
-    name = str(event.get("tool_name") or "")
-    return clean(name.rsplit("__", 1)[-1], TOOL_LIMIT)  # mcp__server__tool -> tool
 
 
 def _is_idle_prompt(event: dict) -> bool:
@@ -103,8 +97,12 @@ def project_name(cwd: str) -> str:
 
 
 def attention_text(session: Session) -> str:
-    what = "needs you" if session.state == WAITING else "done"
-    return clean(f"{project_name(session.cwd)}: {what}", PROMPT_LIMIT)
+    name = project_name(session.cwd)
+    if session.state == WAITING:
+        text = f"Whoa there, {name} needs you"
+    else:
+        text = f"Yeehaw! {name}'s back at the corral"
+    return clean(text, PROMPT_LIMIT)
 
 
 def ordered(sessions: Iterable[Session]) -> list[Session]:
@@ -127,7 +125,7 @@ def summary(sessions: Iterable[Session]) -> str:
         count = sum(1 for s in sessions if s.state == st)
         if count:
             parts.append(f"{ICONS[st]}{count}")
-    return " ".join(parts) or ICONS[IDLE]
+    return " ".join(parts) or QUIET
 
 
 def status_variants(
@@ -141,8 +139,6 @@ def status_variants(
 
     def entry(s: Session) -> str:
         text = f"{tabs.get(s.iterm_id, '')}{ICONS[s.state]} {project_name(s.cwd)}"
-        if s.state == WORKING and s.tool:
-            text += f":{s.tool}"
         return f"[{text}]" if s.iterm_id == current else text
 
     def listing(items: Iterable[Session]) -> str:
