@@ -5,7 +5,9 @@ from pathlib import Path
 JQ = Path(__file__).parent.parent / "scripts" / "merge-hooks.jq"
 CMD = "/Users/x/.local/bin/corral-hook"
 EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Notification", "Stop", "SessionEnd"]
-WAITING_MATCHER = "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input"
+NOTIFICATION_MATCHER = (
+    "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt"
+)
 
 
 def merge(settings: dict) -> dict:
@@ -32,7 +34,7 @@ def test_adds_all_events_to_empty_settings():
     for ev in EVENTS:
         assert len(corral_entries(out, ev)) == 1
     (notif,) = corral_entries(out, "Notification")
-    assert notif["matcher"] == WAITING_MATCHER
+    assert notif["matcher"] == NOTIFICATION_MATCHER
 
 
 def test_preserves_existing_hooks_and_keys():
@@ -53,3 +55,18 @@ def test_preserves_existing_hooks_and_keys():
 def test_idempotent():
     once = merge({})
     assert merge(once) == once
+
+
+def test_upgrades_stale_corral_entry_and_keeps_others():
+    old = {
+        "hooks": {
+            "Notification": [
+                {"hooks": [{"type": "command", "command": "other"}]},
+                {"matcher": "permission_prompt", "hooks": [{"type": "command", "command": CMD}]},
+            ]
+        }
+    }
+    out = merge(old)
+    (notif,) = corral_entries(out, "Notification")
+    assert notif["matcher"] == NOTIFICATION_MATCHER
+    assert out["hooks"]["Notification"][0] == old["hooks"]["Notification"][0]

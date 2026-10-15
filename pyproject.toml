@@ -32,3 +32,4 @@ select = ["E", "F", "I", "UP", "B"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = ["ignore:websockets.legacy is deprecated:DeprecationWarning"]  # from iterm2

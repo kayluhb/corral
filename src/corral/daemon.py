@@ -35,6 +35,8 @@ class Daemon:
         self.summary = state.summary([])
         self.terminations: dict[str, asyncio.Future] = {}
         self.lock = asyncio.Lock()
+        self.app_active = True  # AutoLaunch starts with iTerm frontmost
+        self.tasks: list[asyncio.Task] = []
 
     def live_sessions(self) -> list[state.Session]:
         return [s for s in store.load_all() if self.app.get_session_by_id(s.iterm_id)]
@@ -48,36 +50,60 @@ class Daemon:
         async with self.lock:
             await self._tick()
 
+    def current_session_id(self) -> str | None:
+        """The session you're looking at, or None when iTerm isn't the frontmost app."""
+        if not self.app_active:
+            return None
+        window = self.app.current_window
+        tab = window.current_tab if window else None
+        session = tab.current_session if tab else None
+        return session.session_id if session else None
+
     async def _tick(self) -> None:
+        self.active_id = self.current_session_id()
         sessions = self.live_sessions()
         now = time.time()
         for i, s in enumerate(sessions):
-            if s.state == state.DONE and s.iterm_id == self.active_id:
-                if store.read(s.iterm_id) == s:  # don't clobber a newer hook write
-                    s = replace(s, state=state.IDLE, since=now)
-                    store.write(s)
-                    sessions[i] = s
-            await self.paint(s)
-            prev = self.known.get(s.iterm_id)
-            if prev is not None and prev != s.state and s.state in (state.WAITING, state.DONE):
-                if s.iterm_id != self.active_id:
-                    await self.notify(s)
+            try:
+                sessions[i] = await self._update(s, now)
+            except Exception as exc:  # one bad session must not freeze the rest
+                print(f"corral: {s.iterm_id}: {exc!r}")
+        live_ids = {s.iterm_id for s in sessions}
+        for iterm_id in [i for i, key in self.painted.items() if key and i not in live_ids]:
+            try:
+                await self.paint(iterm_id, None)  # claude exited but the tab is still open
+            except Exception as exc:
+                print(f"corral: clear {iterm_id}: {exc!r}")
         self.known = {s.iterm_id: s.state for s in sessions}
         self.summary = state.summary(sessions)
 
-    async def paint(self, s: state.Session) -> None:
-        key = state.tab_color_key(s.state, s.iterm_id == self.active_id)
-        if self.painted.get(s.iterm_id, "unset") == key:
+    async def _update(self, s: state.Session, now: float) -> state.Session:
+        is_active = s.iterm_id == self.active_id
+        if s.state == state.DONE and is_active:
+            if store.read(s.iterm_id) == s:  # don't clobber a newer hook write
+                s = replace(s, state=state.IDLE, since=now)
+                store.write(s)
+        await self.paint(s.iterm_id, state.tab_color_key(s.state, is_active))
+        prev = self.known.get(s.iterm_id)
+        if prev is not None and prev != s.state and s.state in (state.WAITING, state.DONE):
+            if not is_active:
+                await self.notify(s)
+        return s
+
+    async def paint(self, iterm_id: str, key: str | None) -> None:
+        # Untracked tabs count as uncoloured, so corral only ever clears colours it applied.
+        if self.painted.get(iterm_id) == key:
             return
-        session = self.app.get_session_by_id(s.iterm_id)
+        session = self.app.get_session_by_id(iterm_id)
         if session is None:
+            self.painted.pop(iterm_id, None)
             return
         profile = iterm2.LocalWriteOnlyProfile()
         profile.set_use_tab_color(key is not None)
         if key is not None:
             profile.set_tab_color(COLORS[key])
         await session.async_set_profile_properties(profile)
-        self.painted[s.iterm_id] = key
+        self.painted[iterm_id] = key
 
     async def notify(self, s: state.Session) -> None:
         text = state.attention_text(s)
@@ -128,21 +154,27 @@ class Daemon:
         async with iterm2.FocusMonitor(connection) as monitor:
             while True:
                 update = await monitor.async_get_next_update()
-                if update.active_session_changed:
-                    self.active_id = update.active_session_changed.session_id
+                if update.application_active is not None:
+                    self.app_active = update.application_active.application_active
+                try:
                     await self.tick()
+                except Exception as exc:
+                    print(f"corral focus error: {exc!r}")
 
     async def watch_terminations(self, connection: iterm2.Connection) -> None:
         async with iterm2.SessionTerminationMonitor(connection) as monitor:
             while True:
                 session_id = await monitor.async_get()
-                if store.valid_id(session_id):
-                    store.delete(session_id)
-                self.known.pop(session_id, None)
-                self.painted.pop(session_id, None)
-                future = self.terminations.get(session_id)
-                if future is not None and not future.done():
-                    future.set_result(None)
+                try:
+                    if store.valid_id(session_id):
+                        store.delete(session_id)
+                    self.known.pop(session_id, None)
+                    self.painted.pop(session_id, None)
+                    future = self.terminations.get(session_id)
+                    if future is not None and not future.done():
+                        future.set_result(None)
+                except Exception as exc:
+                    print(f"corral termination error: {exc!r}")
 
 
 def json_quote(text: str) -> str:
@@ -152,9 +184,6 @@ def json_quote(text: str) -> str:
 async def main(connection: iterm2.Connection) -> None:
     app = await iterm2.async_get_app(connection)
     daemon = Daemon(app)
-    window = app.current_terminal_window
-    if window and window.current_tab:
-        daemon.active_id = window.current_tab.current_session.session_id
 
     component = iterm2.StatusBarComponent(
         short_description="corral",
@@ -187,8 +216,10 @@ async def main(connection: iterm2.Connection) -> None:
     await corral_pick.async_register(connection, timeout=PICK_TIMEOUT + 5)
 
     daemon.prune_dead()
-    asyncio.create_task(daemon.watch_focus(connection))
-    asyncio.create_task(daemon.watch_terminations(connection))
+    daemon.tasks = [  # keep references so the monitors aren't garbage-collected
+        asyncio.create_task(daemon.watch_focus(connection)),
+        asyncio.create_task(daemon.watch_terminations(connection)),
+    ]
     while True:
         try:
             await daemon.tick()

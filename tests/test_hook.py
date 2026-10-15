@@ -60,6 +60,10 @@ def test_ignored_event_is_noop(tmp_state):
     assert not tmp_state.exists()
 
 
+def iterm_env(**extra):
+    return {**os.environ, "TERM_PROGRAM": "iTerm.app", "ITERM_SESSION_ID": ITERM, **extra}
+
+
 def run_hook(stdin, env):
     return subprocess.run(
         [sys.executable, "-m", "corral.hook"],
@@ -72,15 +76,14 @@ def run_hook(stdin, env):
 
 @pytest.mark.parametrize("stdin", ["", "not json", "[1,2]", "null"])
 def test_main_survives_bad_stdin(stdin, tmp_state):
-    r = run_hook(stdin, {**os.environ, "ITERM_SESSION_ID": ITERM})
+    r = run_hook(stdin, iterm_env())
     assert r.returncode == 0
     assert r.stdout == ""
     assert not tmp_state.exists()
 
 
 def test_main_end_to_end(tmp_state):
-    env = {**os.environ, "ITERM_SESSION_ID": ITERM}
-    r = run_hook(json.dumps(ev("UserPromptSubmit", prompt="hello")), env)
+    r = run_hook(json.dumps(ev("UserPromptSubmit", prompt="hello")), iterm_env())
     assert r.returncode == 0 and r.stdout == ""
     data = json.loads((tmp_state / "0F3A-99.json").read_text())
     assert data["state"] == WORKING and data["last_prompt"] == "hello"
@@ -91,3 +94,16 @@ def test_main_outside_iterm(tmp_state):
     r = run_hook(json.dumps(ev("SessionStart")), env)
     assert r.returncode == 0
     assert not tmp_state.exists()
+
+
+@pytest.mark.parametrize("term_program", ["tmux", "vscode", ""])
+def test_main_ignores_inherited_iterm_id_in_other_terminals(term_program, tmp_state):
+    r = run_hook(json.dumps(ev("SessionStart")), iterm_env(TERM_PROGRAM=term_program))
+    assert r.returncode == 0
+    assert not tmp_state.exists()
+
+
+def test_idle_prompt_clears_interrupted_working():
+    hook.handle(ev("UserPromptSubmit", prompt="go"), ITERM, 1.0)
+    hook.handle(ev("Notification", notification_type="idle_prompt"), ITERM, 70.0)
+    assert store.read("0F3A-99").state == IDLE

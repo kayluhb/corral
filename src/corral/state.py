@@ -45,7 +45,10 @@ def target_state(event: dict) -> str | None:
     if name in ("UserPromptSubmit", "PostToolUse"):
         return WORKING
     if name == "Notification":
-        return WAITING if event.get("notification_type") in WAITING_NOTIFICATIONS else None
+        kind = event.get("notification_type")
+        if kind == "idle_prompt":
+            return IDLE
+        return WAITING if kind in WAITING_NOTIFICATIONS else None
     if name == "Stop":
         return DONE
     if name == "SessionEnd":
@@ -57,6 +60,8 @@ def transition(
     prev: Session | None, event: dict, iterm_id: str, target: str, now: float
 ) -> Session:
     name = event.get("hook_event_name")
+    if prev is not None and _is_idle_prompt(event) and prev.state != WORKING:
+        return prev  # only an interrupted turn goes idle; never hide waiting/done
     if prev is None or name == "SessionStart":
         prev = Session(iterm_id, "", "", "", now)
     since = prev.since if prev.state == target else now
@@ -70,6 +75,13 @@ def transition(
         state=target,
         since=since,
         last_prompt=last_prompt,
+    )
+
+
+def _is_idle_prompt(event: dict) -> bool:
+    return (
+        event.get("hook_event_name") == "Notification"
+        and event.get("notification_type") == "idle_prompt"
     )
 
 

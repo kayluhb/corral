@@ -33,11 +33,18 @@ def handle(event: dict, env_value: str | None, now: float) -> None:
         store.write(session)
 
 
+def _iterm_session_env() -> str | None:
+    # tmux panes and editors launched from iTerm inherit a stale ITERM_SESSION_ID.
+    if os.environ.get("TERM_PROGRAM") != "iTerm.app":
+        return None
+    return os.environ.get("ITERM_SESSION_ID")
+
+
 def main() -> None:
     try:
         event = json.loads(sys.stdin.read() or "null")
         if isinstance(event, dict):
-            handle(event, os.environ.get("ITERM_SESSION_ID"), time.time())
+            handle(event, _iterm_session_env(), time.time())
     except Exception:
         pass
     sys.exit(0)

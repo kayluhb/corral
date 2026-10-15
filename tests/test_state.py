@@ -27,6 +27,8 @@ def test_target_state_notifications():
         ev = {"hook_event_name": "Notification", "notification_type": t}
         assert state.target_state(ev) == WAITING
     ev = {"hook_event_name": "Notification", "notification_type": "idle_prompt"}
+    assert state.target_state(ev) == IDLE
+    ev = {"hook_event_name": "Notification", "notification_type": "auth_success"}
     assert state.target_state(ev) is None
 
 
@@ -153,3 +155,14 @@ def test_tab_color_key():
     assert state.tab_color_key(WAITING, True) is None
     assert state.tab_color_key(WORKING, False) is None
     assert state.tab_color_key(IDLE, False) is None
+
+
+IDLE_PROMPT = {"hook_event_name": "Notification", "notification_type": "idle_prompt"}
+
+
+def test_idle_prompt_only_clears_working():
+    working = mk(st=WORKING, since=1.0, prompt="p")
+    assert state.transition(working, IDLE_PROMPT, "A", IDLE, 9.0).state == IDLE
+    for st in (WAITING, DONE, IDLE):
+        prev = mk(st=st, since=1.0, prompt="p")
+        assert state.transition(prev, IDLE_PROMPT, "A", IDLE, 9.0) == prev

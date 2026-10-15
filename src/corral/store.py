@@ -29,11 +29,23 @@ def _path(iterm_id: str) -> Path:
     return state_dir() / f"{iterm_id}.json"
 
 
+_STR_FIELDS = ("iterm_id", "claude_session_id", "cwd", "state", "last_prompt")
+
+
+def _well_typed(session: Session) -> bool:
+    if not all(isinstance(getattr(session, f), str) for f in _STR_FIELDS):
+        return False
+    since = session.since
+    return isinstance(since, (int, float)) and not isinstance(since, bool)
+
+
 def _parse(path: Path) -> Session | None:
     try:
         data = json.loads(path.read_text())
         session = Session(**data)
     except (OSError, ValueError, TypeError):
+        return None
+    if not _well_typed(session):
         return None
     if session.state not in PRIORITY or not valid_id(session.iterm_id):
         return None

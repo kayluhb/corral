@@ -59,3 +59,22 @@ def test_load_all_empty_when_dir_missing():
 def test_write_leaves_no_temp_files(tmp_state):
     store.write(s())
     assert sorted(p.name for p in tmp_state.iterdir()) == ["ABC-1.json"]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        '{"iterm_id":123,"claude_session_id":"c","cwd":"/","state":"done","since":0}',
+        '{"iterm_id":"X","claude_session_id":"c","cwd":"/","state":"done","since":null}',
+        '{"iterm_id":"X","claude_session_id":"c","cwd":"/","state":"done","since":"1"}',
+        '{"iterm_id":"X","claude_session_id":"c","cwd":"/","state":"done","since":true}',
+        '{"iterm_id":"X","claude_session_id":5,"cwd":"/","state":"done","since":0}',
+        '{"iterm_id":"X","claude_session_id":"c","cwd":"/","state":["done"],"since":0}',
+        '{"iterm_id":"X","claude_session_id":"c","cwd":"/","state":"done","since":0,'
+        '"last_prompt":7}',
+    ],
+)
+def test_load_all_skips_wrong_field_types(tmp_state, body):
+    store.write(s("GOOD"))
+    (tmp_state / "X.json").write_text(body)
+    assert [x.iterm_id for x in store.load_all()] == ["GOOD"]
