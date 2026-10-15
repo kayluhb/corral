@@ -42,9 +42,6 @@ def component_entry() -> dict:
     request = iterm2.api_pb2.RPCRegistrationRequest()
     request.name = daemon.STATUS_FUNCTION
     request.arguments.add().name = "knobs"
-    request.arguments.add().name = "session_id"
-    default = request.defaults.add()
-    default.name, default.path = "session_id", "id"
     request.role = RPC_ROLE_STATUS_BAR_COMPONENT
     daemon.status_component().set_fields_in_proto(request.status_bar_component_attributes)
     encoded = base64.b64encode(request.SerializeToString()).decode()

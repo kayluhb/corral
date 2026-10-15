@@ -168,12 +168,20 @@ def test_idle_prompt_only_clears_working():
         assert state.transition(prev, IDLE_PROMPT, "A", IDLE, 9.0) == prev
 
 
-def test_status_text_adds_this_sessions_project():
-    ss = [mk("a", WORKING, cwd="/p/hydrogen"), mk("b", DONE, cwd="/p/lasso")]
-    assert state.status_text(ss, "a") == "⚙1 ✓1 │ hydrogen"
+def test_status_variants_longest_first():
+    ss = [
+        mk("a", WAITING, cwd="/p/hydrogen"),
+        mk("b", IDLE, cwd="/p/sanity"),
+        mk("c", DONE, cwd="/p/lasso"),
+    ]
+    assert state.status_variants(ss) == [
+        "✋ hydrogen  · sanity  ✓ lasso",
+        "✋ hydrogen  ✓ lasso",
+        "✋1 ✓1",
+    ]
 
 
-def test_status_text_summary_only_for_tabs_without_claude():
-    ss = [mk("a", WORKING, cwd="/p/hydrogen")]
-    assert state.status_text(ss, "zzz") == "⚙1"
-    assert state.status_text(ss, None) == "⚙1"
+def test_status_variants_dedupes_and_handles_empty():
+    assert state.status_variants([mk("a", WORKING, cwd="/p/x")]) == ["⚙ x", "⚙1"]
+    assert state.status_variants([mk("a", IDLE, cwd="/p/x")]) == ["· x", "·"]
+    assert state.status_variants([]) == ["·"]

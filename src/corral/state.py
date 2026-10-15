@@ -122,12 +122,16 @@ def summary(sessions: Iterable[Session]) -> str:
     return " ".join(parts) or ICONS[IDLE]
 
 
-def status_text(sessions: Iterable[Session], iterm_id: str | None) -> str:
-    """Status bar text for one tab: the overall summary, plus this tab's project."""
+def status_variants(sessions: Iterable[Session]) -> list[str]:
+    """Status bar texts, longest first; iTerm shows the longest that fits."""
     sessions = list(sessions)
-    text = summary(sessions)
-    mine = next((s for s in sessions if s.iterm_id == iterm_id), None)
-    return f"{text} │ {project_name(mine.cwd)}" if mine else text
+
+    def listing(items: Iterable[Session]) -> str:
+        return "  ".join(f"{ICONS[s.state]} {project_name(s.cwd)}" for s in items)
+
+    variants = [listing(sessions), listing(s for s in sessions if s.state != IDLE)]
+    variants.append(summary(sessions))
+    return [v for i, v in enumerate(variants) if v and v not in variants[:i]]
 
 
 def tab_color_key(state: str, is_active: bool) -> str | None:

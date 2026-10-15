@@ -31,6 +31,11 @@ class FakeApp:
         return self.sessions.get(session_id)
 
     @property
+    def terminal_windows(self):
+        tabs = [type("Tab", (), {"sessions": [s]})() for s in self.sessions.values()]
+        return [type("Window", (), {"tabs": tabs})()]
+
+    @property
     def current_window(self):
         session = self.sessions[self.current]
         tab = type("Tab", (), {"current_session": session})()
@@ -104,10 +109,10 @@ def test_never_clears_colour_corral_did_not_apply():
     assert a.colors == []
 
 
-def test_status_bar_shows_this_tabs_project():
-    a, b = FakeSession("A"), FakeSession("B")
-    d = daemon.Daemon(FakeApp([a, b], current="A"))
-    put("A", WORKING)
+def test_status_bar_lists_sessions_in_tab_order():
+    a, b, c = FakeSession("A"), FakeSession("B"), FakeSession("C")
+    d = daemon.Daemon(FakeApp([b, c, a], current="C"))
+    put("A", WAITING)
+    put("B", WORKING)
     tick(d)
-    assert d.status("A") == "⚙1 │ A"
-    assert d.status("B") == "⚙1"
+    assert d.status()[0] == "⚙ B  ✋ A"

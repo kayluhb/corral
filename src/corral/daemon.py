@@ -77,10 +77,20 @@ class Daemon:
                 print(f"corral: clear {iterm_id}: {exc!r}")
         self.known = {s.iterm_id: s.state for s in sessions}
         self.summary = state.summary(sessions)
-        self.sessions = sessions
+        position = self.tab_positions()
+        self.sessions = sorted(sessions, key=lambda s: position.get(s.iterm_id, len(position)))
 
-    def status(self, session_id: str | None) -> str:
-        return state.status_text(self.sessions, session_id)
+    def tab_positions(self) -> dict[str, int]:
+        ids = [
+            session.session_id
+            for window in self.app.terminal_windows
+            for tab in window.tabs
+            for session in tab.sessions
+        ]
+        return {session_id: i for i, session_id in enumerate(ids)}
+
+    def status(self) -> list[str]:
+        return state.status_variants(self.sessions)
 
     async def _update(self, s: state.Session, now: float) -> state.Session:
         is_active = s.iterm_id == self.active_id
@@ -208,8 +218,8 @@ async def main(connection: iterm2.Connection) -> None:
     component = status_component()
 
     @iterm2.StatusBarRPC  # name must match STATUS_FUNCTION
-    async def corral_status(knobs, session_id=CURRENT_SESSION):
-        return daemon.status(session_id)
+    async def corral_status(knobs):
+        return daemon.status()
 
     @iterm2.RPC
     async def corral_next_waiting(session_id=CURRENT_SESSION):
