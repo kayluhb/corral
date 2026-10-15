@@ -166,3 +166,14 @@ def test_idle_prompt_only_clears_working():
     for st in (WAITING, DONE, IDLE):
         prev = mk(st=st, since=1.0, prompt="p")
         assert state.transition(prev, IDLE_PROMPT, "A", IDLE, 9.0) == prev
+
+
+def test_status_text_adds_this_sessions_project():
+    ss = [mk("a", WORKING, cwd="/p/hydrogen"), mk("b", DONE, cwd="/p/lasso")]
+    assert state.status_text(ss, "a") == "⚙1 ✓1 │ hydrogen"
+
+
+def test_status_text_summary_only_for_tabs_without_claude():
+    ss = [mk("a", WORKING, cwd="/p/hydrogen")]
+    assert state.status_text(ss, "zzz") == "⚙1"
+    assert state.status_text(ss, None) == "⚙1"

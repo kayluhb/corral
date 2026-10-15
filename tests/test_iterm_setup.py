@@ -20,7 +20,8 @@ def test_component_entry_matches_daemon_registration():
     assert entry["configuration"]["knobs"] == {}
     request = decode(entry)
     assert request.name == "corral_status"
-    assert [a.name for a in request.arguments] == ["knobs"]
+    assert [a.name for a in request.arguments] == ["knobs", "session_id"]
+    assert [(d.name, d.path) for d in request.defaults] == [("session_id", "id")]
     assert request.status_bar_component_attributes.unique_identifier == "com.calebbrown.corral"
 
 
@@ -33,13 +34,28 @@ def test_add_component_appends_and_keeps_existing():
     assert layout["components"] == [OTHER_COMPONENT]  # input not mutated
 
 
+GIT = {"class": "iTermStatusBarGitComponent", "configuration": {"knobs": {}}}
+
+
+def test_add_component_adds_git_after_corral():
+    result = iterm_setup.add_component(EMPTY_LAYOUT)
+    assert decode(result["components"][0]).name == "corral_status"
+    assert result["components"][1] == GIT
+
+
+def test_add_component_keeps_an_existing_git_item():
+    layout = {**EMPTY_LAYOUT, "components": [GIT]}
+    result = iterm_setup.add_component(layout)
+    assert [c["class"] for c in result["components"]].count(GIT["class"]) == 1
+
+
 def test_add_component_is_idempotent():
     once = iterm_setup.add_component(EMPTY_LAYOUT)
     assert iterm_setup.add_component(once) == once
 
 
 def test_add_component_handles_missing_layout():
-    assert len(iterm_setup.add_component(None)["components"]) == 1
+    assert len(iterm_setup.add_component(None)["components"]) == 2
 
 
 def test_add_bindings_keeps_existing_and_adds_three():

@@ -122,6 +122,14 @@ def summary(sessions: Iterable[Session]) -> str:
     return " ".join(parts) or ICONS[IDLE]
 
 
+def status_text(sessions: Iterable[Session], iterm_id: str | None) -> str:
+    """Status bar text for one tab: the overall summary, plus this tab's project."""
+    sessions = list(sessions)
+    text = summary(sessions)
+    mine = next((s for s in sessions if s.iterm_id == iterm_id), None)
+    return f"{text} │ {project_name(mine.cwd)}" if mine else text
+
+
 def tab_color_key(state: str, is_active: bool) -> str | None:
     if is_active or state not in (WAITING, DONE):
         return None

@@ -19,6 +19,7 @@ from iterm2.notifications import RPC_ROLE_STATUS_BAR_COMPONENT
 from corral import daemon
 
 COMPONENT_CLASS = "iTermStatusBarRPCProvidedTextComponent"
+GIT_COMPONENT = {"class": "iTermStatusBarGitComponent", "configuration": {"knobs": {}}}
 REQUEST_KEY = "registration request v2"
 HYPER = [Modifier.CONTROL, Modifier.OPTION, Modifier.COMMAND]
 _KEYS = [  # ⌃⌥⌘W / ⌃⌥⌘D / ⌃⌥⌘P
@@ -41,6 +42,9 @@ def component_entry() -> dict:
     request = iterm2.api_pb2.RPCRegistrationRequest()
     request.name = daemon.STATUS_FUNCTION
     request.arguments.add().name = "knobs"
+    request.arguments.add().name = "session_id"
+    default = request.defaults.add()
+    default.name, default.path = "session_id", "id"
     request.role = RPC_ROLE_STATUS_BAR_COMPONENT
     daemon.status_component().set_fields_in_proto(request.status_bar_component_attributes)
     encoded = base64.b64encode(request.SerializeToString()).decode()
@@ -56,10 +60,16 @@ def _is_corral(component: dict) -> bool:
 
 
 def add_component(layout: dict | None) -> dict:
+    """Add corral's item (refreshing a stale one) and iTerm's git item if missing."""
     layout = copy.deepcopy(layout) if layout else {"components": []}
     components = layout.setdefault("components", [])
-    if not any(_is_corral(c) for c in components):
+    corral = [i for i, c in enumerate(components) if _is_corral(c)]
+    for i in corral:
+        components[i] = component_entry()
+    if not corral:
         components.append(component_entry())
+    if not any(c.get("class") == GIT_COMPONENT["class"] for c in components):
+        components.append(copy.deepcopy(GIT_COMPONENT))
     return layout
 
 

@@ -102,3 +102,12 @@ def test_never_clears_colour_corral_did_not_apply():
     put("A", WORKING)
     tick(d)
     assert a.colors == []
+
+
+def test_status_bar_shows_this_tabs_project():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="A"))
+    put("A", WORKING)
+    tick(d)
+    assert d.status("A") == "⚙1 │ A"
+    assert d.status("B") == "⚙1"

@@ -33,9 +33,10 @@ class Daemon:
         self.known: dict[str, str] = {}  # iterm_id -> last seen state
         self.painted: dict[str, str | None] = {}  # iterm_id -> colour key applied
         self.summary = state.summary([])
+        self.sessions: list[state.Session] = []
         self.terminations: dict[str, asyncio.Future] = {}
         self.lock = asyncio.Lock()
-        self.app_active = True  # AutoLaunch starts with iTerm frontmost
+        self.app_active = True  # started by a claude hook, so iTerm is almost surely frontmost
         self.tasks: list[asyncio.Task] = []
 
     def live_sessions(self) -> list[state.Session]:
@@ -76,6 +77,10 @@ class Daemon:
                 print(f"corral: clear {iterm_id}: {exc!r}")
         self.known = {s.iterm_id: s.state for s in sessions}
         self.summary = state.summary(sessions)
+        self.sessions = sessions
+
+    def status(self, session_id: str | None) -> str:
+        return state.status_text(self.sessions, session_id)
 
     async def _update(self, s: state.Session, now: float) -> state.Session:
         is_active = s.iterm_id == self.active_id
@@ -203,8 +208,8 @@ async def main(connection: iterm2.Connection) -> None:
     component = status_component()
 
     @iterm2.StatusBarRPC  # name must match STATUS_FUNCTION
-    async def corral_status(knobs):
-        return daemon.summary
+    async def corral_status(knobs, session_id=CURRENT_SESSION):
+        return daemon.status(session_id)
 
     @iterm2.RPC
     async def corral_next_waiting(session_id=CURRENT_SESSION):
