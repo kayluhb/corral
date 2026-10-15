@@ -33,6 +33,8 @@ prompt. It exits when iTerm quits and starts again with the next claude event.
 | ⌘⇧J | `corral_next_done` | Same, for finished sessions you haven't looked at yet. |
 | ⌘P | `corral_pick` | Open an fzf switcher in a temporary split. Enter jumps to the session; Esc cancels. |
 
+Click the corral status bar item to open a list of every claude tab; click one to jump to it.
+
 ## States
 
 | State | Icon | Tab colour | Meaning |

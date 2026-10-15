@@ -13,7 +13,7 @@ from pathlib import Path
 
 import iterm2
 
-from corral import launcher, state, store
+from corral import launcher, popover, state, store
 
 POLL_SECONDS = 0.5
 PICK_TIMEOUT = 600
@@ -235,7 +235,14 @@ async def main(connection: iterm2.Connection) -> None:
     async def corral_pick(session_id=CURRENT_SESSION):
         await daemon.pick(session_id)
 
-    await component.async_register(connection, corral_status)
+    links = await popover.serve(daemon.focus)
+
+    async def on_click(session_id):
+        html = popover.render(daemon.sessions, daemon.tabs, session_id, links.url, links.token)
+        size = iterm2.util.Size(popover.WIDTH, popover.height(len(daemon.sessions)))
+        await component.async_open_popover(session_id, html, size)
+
+    await component.async_register(connection, corral_status, onclick=on_click)
     await corral_next_waiting.async_register(connection)
     await corral_next_done.async_register(connection)
     await corral_pick.async_register(connection, timeout=PICK_TIMEOUT + 5)
