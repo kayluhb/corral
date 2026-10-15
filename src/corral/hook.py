@@ -7,7 +7,7 @@ import os
 import sys
 import time
 
-from corral import state, store
+from corral import launcher, state, store
 
 
 def iterm_id_from_env(value: str | None) -> str | None:
@@ -21,6 +21,7 @@ def handle(event: dict, env_value: str | None, now: float) -> None:
     iterm_id = iterm_id_from_env(env_value)
     if iterm_id is None:
         return
+    launcher.ensure_running()
     target = state.target_state(event)
     if target is None:
         return

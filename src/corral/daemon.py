@@ -13,7 +13,7 @@ from pathlib import Path
 
 import iterm2
 
-from corral import state, store
+from corral import launcher, state, store
 
 POLL_SECONDS = 0.5
 PICK_TIMEOUT = 600
@@ -181,20 +181,28 @@ def json_quote(text: str) -> str:
     return '"' + text.replace("\\", "\\\\").replace('"', '\\"') + '"'
 
 
-async def main(connection: iterm2.Connection) -> None:
-    app = await iterm2.async_get_app(connection)
-    daemon = Daemon(app)
+COMPONENT_ID = "com.calebbrown.corral"
+STATUS_FUNCTION = "corral_status"
 
-    component = iterm2.StatusBarComponent(
+
+def status_component() -> iterm2.StatusBarComponent:
+    return iterm2.StatusBarComponent(
         short_description="corral",
         detailed_description="Claude session status (waiting / working / done)",
         knobs=[],
         exemplar="✋2 ⚙3 ✓1",
         update_cadence=1.0,
-        identifier="com.calebbrown.corral",
+        identifier=COMPONENT_ID,
     )
 
-    @iterm2.StatusBarRPC
+
+async def main(connection: iterm2.Connection) -> None:
+    app = await iterm2.async_get_app(connection)
+    daemon = Daemon(app)
+
+    component = status_component()
+
+    @iterm2.StatusBarRPC  # name must match STATUS_FUNCTION
     async def corral_status(knobs):
         return daemon.summary
 
@@ -229,4 +237,7 @@ async def main(connection: iterm2.Connection) -> None:
 
 
 def run() -> None:
-    iterm2.run_forever(main)
+    lock = launcher.acquire()
+    if lock is None:
+        return  # another daemon is already running
+    iterm2.run_forever(main)  # returns/raises when iTerm quits; the hook restarts us

@@ -12,5 +12,21 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("pick", help="fuzzy-pick a claude session")
     p.add_argument("--out", type=Path, required=True, help="file to write the chosen iTerm id to")
+    sub.add_parser("daemon", help="run the iTerm daemon (launchd runs this)")
+    sub.add_parser("setup", help="add the corral status bar item and hotkeys to iTerm")
     args = parser.parse_args()
-    sys.exit(pick.run(args.out))
+    if args.command == "pick":
+        sys.exit(pick.run(args.out))
+    # iterm2 is only needed by these two; keep `pick` stdlib-only and fast.
+    if args.command == "daemon":
+        from corral import daemon
+
+        daemon.run()
+    else:
+        from corral import iterm_setup
+
+        iterm_setup.main()
+
+
+if __name__ == "__main__":
+    main()
