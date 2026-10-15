@@ -115,4 +115,5 @@ def test_status_bar_lists_sessions_in_tab_order():
     put("A", WAITING)
     put("B", WORKING)
     tick(d)
-    assert d.status()[0] == "⚙ B  ✋ A"
+    assert d.status("C")[0] == "1⚙ B  3✋ A"
+    assert d.status("A")[0] == "1⚙ B  [3✋ A]"

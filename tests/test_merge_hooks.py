@@ -4,7 +4,15 @@ from pathlib import Path
 
 JQ = Path(__file__).parent.parent / "scripts" / "merge-hooks.jq"
 CMD = "/Users/x/.local/bin/corral-hook"
-EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Notification", "Stop", "SessionEnd"]
+EVENTS = [
+    "SessionStart",
+    "UserPromptSubmit",
+    "PreToolUse",
+    "PostToolUse",
+    "Notification",
+    "Stop",
+    "SessionEnd",
+]
 NOTIFICATION_MATCHER = (
     "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt"
 )

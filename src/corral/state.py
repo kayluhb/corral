@@ -21,6 +21,7 @@ WAITING_NOTIFICATIONS = frozenset(
 )
 LIFECYCLE_EVENTS = frozenset({"SessionStart", "Stop", "SessionEnd"})
 PROMPT_LIMIT = 80
+TOOL_LIMIT = 24
 
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _SPACES = re.compile(r"\s+")
@@ -34,6 +35,7 @@ class Session:
     state: str
     since: float
     last_prompt: str = ""
+    tool: str = ""  # tool running right now (PreToolUse until PostToolUse)
 
 
 def target_state(event: dict) -> str | None:
@@ -42,7 +44,7 @@ def target_state(event: dict) -> str | None:
         return None
     if name == "SessionStart":
         return IDLE
-    if name in ("UserPromptSubmit", "PostToolUse"):
+    if name in ("UserPromptSubmit", "PreToolUse", "PostToolUse"):
         return WORKING
     if name == "Notification":
         kind = event.get("notification_type")
@@ -75,7 +77,13 @@ def transition(
         state=target,
         since=since,
         last_prompt=last_prompt,
+        tool=_tool(event) if name == "PreToolUse" else "",
     )
+
+
+def _tool(event: dict) -> str:
+    name = str(event.get("tool_name") or "")
+    return clean(name.rsplit("__", 1)[-1], TOOL_LIMIT)  # mcp__server__tool -> tool
 
 
 def _is_idle_prompt(event: dict) -> bool:
@@ -122,12 +130,23 @@ def summary(sessions: Iterable[Session]) -> str:
     return " ".join(parts) or ICONS[IDLE]
 
 
-def status_variants(sessions: Iterable[Session]) -> list[str]:
-    """Status bar texts, longest first; iTerm shows the longest that fits."""
+def status_variants(
+    sessions: Iterable[Session], tabs: dict[str, int], current: str | None
+) -> list[str]:
+    """Status bar texts, longest first; iTerm shows the longest that fits.
+
+    tabs maps iterm_id -> tab number (the ⌘N for it); current is bracketed.
+    """
     sessions = list(sessions)
 
+    def entry(s: Session) -> str:
+        text = f"{tabs.get(s.iterm_id, '')}{ICONS[s.state]} {project_name(s.cwd)}"
+        if s.state == WORKING and s.tool:
+            text += f":{s.tool}"
+        return f"[{text}]" if s.iterm_id == current else text
+
     def listing(items: Iterable[Session]) -> str:
-        return "  ".join(f"{ICONS[s.state]} {project_name(s.cwd)}" for s in items)
+        return "  ".join(entry(s) for s in items)
 
     variants = [listing(sessions), listing(s for s in sessions if s.state != IDLE)]
     variants.append(summary(sessions))

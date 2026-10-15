@@ -21,7 +21,8 @@ def test_component_entry_matches_daemon_registration():
     assert entry["configuration"]["knobs"] == {}
     request = decode(entry)
     assert request.name == "corral_status"
-    assert [a.name for a in request.arguments] == ["knobs"]
+    assert [a.name for a in request.arguments] == ["knobs", "session_id"]
+    assert [(d.name, d.path) for d in request.defaults] == [("session_id", "id")]
     assert request.status_bar_component_attributes.unique_identifier == "com.calebbrown.corral"
 
 

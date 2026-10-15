@@ -29,7 +29,7 @@ def _path(iterm_id: str) -> Path:
     return state_dir() / f"{iterm_id}.json"
 
 
-_STR_FIELDS = ("iterm_id", "claude_session_id", "cwd", "state", "last_prompt")
+_STR_FIELDS = ("iterm_id", "claude_session_id", "cwd", "state", "last_prompt", "tool")
 
 
 def _well_typed(session: Session) -> bool:

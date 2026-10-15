@@ -13,6 +13,7 @@ def add($event; $matcher):
 .hooks = (.hooks // {})
 | add("SessionStart"; null)
 | add("UserPromptSubmit"; null)
+| add("PreToolUse"; null)
 | add("PostToolUse"; null)
 | add("Notification"; "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt")
 | add("Stop"; null)
