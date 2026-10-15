@@ -6,7 +6,7 @@ import json
 import os
 import re
 import tempfile
-from dataclasses import asdict
+from dataclasses import asdict, fields
 from pathlib import Path
 
 from corral.state import PRIORITY, Session
@@ -29,6 +29,7 @@ def _path(iterm_id: str) -> Path:
     return state_dir() / f"{iterm_id}.json"
 
 
+_FIELDS = {f.name for f in fields(Session)}
 _STR_FIELDS = ("iterm_id", "claude_session_id", "cwd", "state", "last_prompt")
 
 
@@ -42,8 +43,9 @@ def _well_typed(session: Session) -> bool:
 def _parse(path: Path) -> Session | None:
     try:
         data = json.loads(path.read_text())
-        session = Session(**data)
-    except (OSError, ValueError, TypeError):
+        # Ignore fields written by other corral versions so a schema change never hides sessions.
+        session = Session(**{k: v for k, v in data.items() if k in _FIELDS})
+    except (OSError, ValueError, TypeError, AttributeError):  # AttributeError: not an object
         return None
     if not _well_typed(session):
         return None

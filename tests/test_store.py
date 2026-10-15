@@ -78,3 +78,10 @@ def test_load_all_skips_wrong_field_types(tmp_state, body):
     store.write(s("GOOD"))
     (tmp_state / "X.json").write_text(body)
     assert [x.iterm_id for x in store.load_all()] == ["GOOD"]
+
+
+def test_extra_fields_from_other_versions_are_ignored(tmp_state):
+    tmp_state.mkdir(parents=True, exist_ok=True)
+    body = '{"iterm_id": "A", "claude_session_id": "c", "cwd": "/p", "state": "done",'
+    (tmp_state / "A.json").write_text(body + ' "since": 1.0, "tool": "Bash"}')
+    assert store.read("A") == Session("A", "c", "/p", DONE, 1.0)
