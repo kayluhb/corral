@@ -43,8 +43,7 @@ Changes apply straight away. They're stored in `~/.config/corral/settings.json`,
 
 | Setting | Values | Default |
 |---|---|---|
-| Group by project | on / off: sessions of one project collapse into one entry, like `1 hydrogen 🐄🐎💤`, and the popover lists them under project headings | off |
-| Theme | ranch (🐄🐎🌵💤, cowboy notifications) / classic (✋⚙✓·, plain text) | ranch |
+| Group by project | on / off: sessions of one project collapse into one entry, like `1 hydrogen ✋🟡⚪`, and the popover lists them under project headings | off |
 | Tab colours | on / off | on |
 
 ## Restore
@@ -62,15 +61,15 @@ one at a time, aren't included, and neither is anything still running.
 
 | State | Icon | Tab colour | Meaning |
 |---|---|---|---|
-| waiting (a stray) | 🐄 | amber | Permission prompt, question or agent input needed |
-| working (riding) | 🐎 | none | Prompt submitted or tool running |
-| done (back at camp) | 🌵 | green | Claude finished. Becomes idle once you focus the tab |
-| idle | 💤 | none | Session open, nothing pending |
+| waiting | ✋ | red | Permission prompt, question or agent input needed |
+| working | 🟡 | none | Prompt submitted or tool running |
+| done | 🟢 | green | Claude finished. Becomes idle once you focus the tab |
+| idle | ⚪ | none | Session open, nothing pending |
 
 The status bar lists every claude tab in tab order: its tab number (the ⌘N), state and
-project, with the tab you're in bracketed, for example `1🐄 hydrogen  [2🐎 corral]  3🌵 lasso`.
-When the bar is narrow it drops idle tabs, then falls back to counts (`🐄1 🐎1 🌵1`). With nothing
-going on it reads `🤠 quiet on the range`. A colour is never shown on the tab you're
+project, with the tab you're in bracketed, for example `1✋ hydrogen  [2🟡 corral]  3🟢 lasso`.
+When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 🟡1 🟢1`). With nothing
+going on it reads `all quiet`. A colour is never shown on the tab you're
 currently in. You get a notification only for sessions you're not looking at.
 
 ## Development

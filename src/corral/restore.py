@@ -76,7 +76,7 @@ def run() -> int:
     running = {s.claude_session_id for s in store.load_all()}
     batch = last_batch(load(), running)
     if not batch:
-        print("🤠 Nothing to restore.")
+        print("Nothing to restore.")
         return 0
     print(f"Reopen {len(batch)} claude session{'s' * (len(batch) != 1)}?")
     for _, v in batch:
@@ -93,5 +93,5 @@ def run() -> int:
             await tab.sessions[0].async_send_text(resume_command(claude_id, v["cwd"]) + "\n")
 
     iterm2.run_until_complete(open_tabs)
-    print(f"Yeehaw! {len(batch)} back in the corral.")
+    print(f"Reopened {len(batch)}.")
     return 0

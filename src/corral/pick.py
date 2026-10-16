@@ -7,7 +7,7 @@ import subprocess
 import time
 from pathlib import Path
 
-from corral import settings, state, store
+from corral import state, store
 from corral.state import Session
 
 FZF_FALLBACKS = ("/opt/homebrew/bin/fzf", "/usr/local/bin/fzf")
@@ -21,10 +21,10 @@ def age(seconds: float) -> str:
     return f"{seconds}s"
 
 
-def format_line(s: Session, now: float, theme: state.Theme = state.RANCH) -> str:
+def format_line(s: Session, now: float) -> str:
     project = state.clean(state.project_name(s.cwd), 24)
     prompt = state.clean(s.last_prompt, 80)
-    return f"{s.iterm_id}\t{theme.icons[s.state]} {project:<24} {age(now - s.since):>4}  {prompt}"
+    return f"{s.iterm_id}\t{state.ICONS[s.state]} {project:<24} {age(now - s.since):>4}  {prompt}"
 
 
 def parse_choice(line: str) -> str | None:
@@ -52,8 +52,7 @@ def run(out: Path) -> int:
         time.sleep(2)
         return 1
     now = time.time()
-    theme = state.THEMES[settings.load().theme]
-    lines = "\n".join(format_line(s, now, theme) for s in sessions)
+    lines = "\n".join(format_line(s, now) for s in sessions)
     result = subprocess.run(
         [
             fzf,

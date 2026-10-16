@@ -78,7 +78,7 @@ def test_done_stays_done_and_notifies_while_iterm_in_background():
     put("A", DONE)
     tick(d)
     assert store.read("A").state == DONE
-    assert a.injected and b"Yeehaw" in a.injected[0]
+    assert a.injected and b"is done" in a.injected[0]
     assert a.colors[-1] is True
 
 
@@ -116,8 +116,8 @@ def test_status_bar_lists_sessions_in_tab_order():
     put("A", WAITING)
     put("B", WORKING)
     tick(d)
-    assert d.status("C")[0] == "1🐎 B  3🐄 A"
-    assert d.status("A")[0] == "1🐎 B  [3🐄 A]"
+    assert d.status("C")[0] == "1🟡 B  3✋ A"
+    assert d.status("A")[0] == "1🟡 B  [3✋ A]"
 
 
 def test_tick_records_restore_history_without_forgetting_earlier_sessions():
@@ -140,10 +140,10 @@ def test_grouping_comes_from_corral_settings(monkeypatch):
     store.write(Session("A", "c1", "/p/hydrogen", WORKING, 1.0))
     store.write(Session("B", "c2", "/p/hydrogen", WAITING, 1.0))
     tick(d)
-    assert d.status("A")[0] == "[1🐎 hydrogen]  2🐄 hydrogen"
+    assert d.status("A")[0] == "[1🟡 hydrogen]  2✋ hydrogen"
     settings.save(settings.Settings(group=True))
     tick(d)
-    assert d.status("A")[0] == "[1 hydrogen 🐎🐄]"
+    assert d.status("A")[0] == "[1 hydrogen 🟡✋]"
 
 
 def test_tab_colours_off_clears_and_stops_painting():
@@ -158,3 +158,8 @@ def test_tab_colours_off_clears_and_stops_painting():
     put("A", DONE)
     tick(d)
     assert a.colors == [True, False]
+
+
+def test_waiting_tab_is_red_and_done_tab_green():
+    assert daemon.COLORS[WAITING].red > 200 and daemon.COLORS[WAITING].green < 100
+    assert daemon.COLORS[DONE].green > daemon.COLORS[DONE].red

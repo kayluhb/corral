@@ -19,7 +19,7 @@ POLL_SECONDS = 0.5
 PICK_TIMEOUT = 600
 CORRAL_BIN = os.environ.get("CORRAL_BIN", os.path.expanduser("~/.local/bin/corral"))
 COLORS = {
-    state.WAITING: iterm2.Color(255, 176, 0),
+    state.WAITING: iterm2.Color(230, 60, 60),
     state.DONE: iterm2.Color(80, 200, 120),
 }
 USE_OSC9 = True  # iTerm's own notification (tied to the tab); False falls back to osascript
@@ -36,7 +36,6 @@ class Daemon:
         self.sessions: list[state.Session] = []
         self.tabs: dict[str, int] = {}
         self.settings = settings.load()
-        self.theme = state.THEMES[self.settings.theme]
         self.history = restore.load()  # keep what earlier runs saw, for `corral restore`
         self.history_saved = 0.0
         self.terminations: dict[str, asyncio.Future] = {}
@@ -67,7 +66,6 @@ class Daemon:
 
     async def _tick(self) -> None:
         self.settings = settings.load()  # small file; re-read so `corral settings` applies live
-        self.theme = state.THEMES[self.settings.theme]
         self.active_id = self.current_session_id()
         sessions = self.live_sessions()
         now = time.time()
@@ -83,7 +81,7 @@ class Daemon:
             except Exception as exc:
                 print(f"corral: clear {iterm_id}: {exc!r}")
         self.known = {s.iterm_id: s.state for s in sessions}
-        self.summary = state.summary(sessions, self.theme)
+        self.summary = state.summary(sessions)
         self.tabs = self.tab_numbers()
         order = {iterm_id: i for i, iterm_id in enumerate(self.tabs)}
         self.sessions = sorted(sessions, key=lambda s: order.get(s.iterm_id, len(order)))
@@ -102,8 +100,7 @@ class Daemon:
         }
 
     def status(self, session_id: str | None) -> list[str]:
-        group, theme = self.settings.group, self.theme
-        return state.status_variants(self.sessions, self.tabs, session_id, group, theme)
+        return state.status_variants(self.sessions, self.tabs, session_id, self.settings.group)
 
     async def _update(self, s: state.Session, now: float) -> state.Session:
         is_active = s.iterm_id == self.active_id
@@ -135,7 +132,7 @@ class Daemon:
         self.painted[iterm_id] = key
 
     async def notify(self, s: state.Session) -> None:
-        text = state.attention_text(s, self.theme)
+        text = state.attention_text(s)
         if USE_OSC9:
             session = self.app.get_session_by_id(s.iterm_id)
             if session is not None:
@@ -219,7 +216,7 @@ def status_component() -> iterm2.StatusBarComponent:
         short_description="corral",
         detailed_description="Claude session status (waiting / working / done)",
         knobs=[],
-        exemplar="1🐄 hydrogen  [2🐎 corral]  3🌵 lasso",
+        exemplar="1✋ hydrogen  [2🟡 corral]  3🟢 lasso",
         update_cadence=1.0,
         identifier=COMPONENT_ID,
     )
@@ -250,9 +247,9 @@ async def main(connection: iterm2.Connection) -> None:
     links = await popover.serve(daemon.focus)
 
     async def on_click(session_id):
-        group, theme = daemon.settings.group, daemon.theme
+        group = daemon.settings.group
         sessions, tabs = daemon.sessions, daemon.tabs
-        html = popover.render(sessions, tabs, session_id, links.url, links.token, group, theme)
+        html = popover.render(sessions, tabs, session_id, links.url, links.token, group)
         size = iterm2.util.Size(popover.WIDTH, popover.height(popover.row_count(sessions, group)))
         await component.async_open_popover(session_id, html, size)
 

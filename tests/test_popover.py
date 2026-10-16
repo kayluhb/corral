@@ -15,7 +15,7 @@ def test_render_lists_sessions_with_links_in_order():
     html = popover.render(ss, {"A-1": 1, "B-2": 3}, "B-2", URL, "tok")
     assert html.index("hydrogen") < html.index("lasso")
     assert f"{URL}/A-1?t=tok" in html and f"{URL}/B-2?t=tok" in html
-    assert "🐄" in html and "fix it" in html
+    assert "✋" in html and "fix it" in html
     assert 'class="row current"' in html
 
 
@@ -25,7 +25,7 @@ def test_render_escapes_project_and_prompt():
 
 
 def test_render_when_empty():
-    assert "quiet on the range" in popover.render([], {}, None, URL, "t")
+    assert "all quiet" in popover.render([], {}, None, URL, "t")
 
 
 def test_parse_request_needs_token_and_valid_id():

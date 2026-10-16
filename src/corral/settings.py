@@ -12,14 +12,12 @@ from pathlib import Path
 @dataclass(frozen=True)
 class Settings:
     group: bool = False
-    theme: str = "ranch"
     tab_colours: bool = True
 
 
 # (key, label, values in the order Enter cycles through them)
 OPTIONS = (
     ("group", "Group by project", (False, True)),
-    ("theme", "Theme", ("ranch", "classic")),
     ("tab_colours", "Tab colours", (True, False)),
 )
 
@@ -80,7 +78,7 @@ def menu() -> int:
         current, selected = load(), 0
         while True:
             screen.erase()
-            screen.addstr(1, 2, "corral settings  🤠", curses.A_BOLD)
+            screen.addstr(1, 2, "corral settings", curses.A_BOLD)
             for i, (label, value) in enumerate(rows(current)):
                 attr = curses.A_REVERSE if i == selected else curses.A_NORMAL
                 screen.addstr(
