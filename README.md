@@ -35,6 +35,17 @@ prompt. It exits when iTerm quits and starts again with the next claude event.
 
 Click the corral status bar item to open a list of every claude tab; click one to jump to it.
 
+## Restore
+
+Run `corral` (or `corral restore`) to reopen the claude sessions that were running when iTerm
+last quit. It lists them and asks before opening anything. It opens a new window with one tab
+per session, in the old tab order, and runs `claude --resume <id>` in each tab's own folder.
+
+The daemon keeps a history of claude sessions in `~/.local/state/corral/restore/history.json`
+and forgets entries after a week. "Last time" means the sessions that stopped within 30 seconds
+of the most recent one to stop. Quitting iTerm stops them all together. Tabs you closed earlier,
+one at a time, aren't included, and neither is anything still running.
+
 ## States
 
 | State | Icon | Tab colour | Meaning |

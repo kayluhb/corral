@@ -1,4 +1,5 @@
 import asyncio
+import time
 
 import pytest
 
@@ -117,3 +118,17 @@ def test_status_bar_lists_sessions_in_tab_order():
     tick(d)
     assert d.status("C")[0] == "1🐎 B  3🐄 A"
     assert d.status("A")[0] == "1🐎 B  [3🐄 A]"
+
+
+def test_tick_records_restore_history_without_forgetting_earlier_sessions():
+    from corral import restore
+
+    earlier = {"cwd": "/p/x", "last_prompt": "", "order": 0, "last_seen": time.time() - 60}
+    restore.save({"from-last-time": earlier})
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", WORKING)
+    tick(d)
+    history = restore.load()
+    assert set(history) == {"from-last-time", "c"}
+    assert history["c"]["cwd"] == "/p/A"

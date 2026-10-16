@@ -13,7 +13,7 @@ from pathlib import Path
 
 import iterm2
 
-from corral import launcher, popover, state, store
+from corral import launcher, popover, restore, state, store
 
 POLL_SECONDS = 0.5
 PICK_TIMEOUT = 600
@@ -35,6 +35,8 @@ class Daemon:
         self.summary = state.summary([])
         self.sessions: list[state.Session] = []
         self.tabs: dict[str, int] = {}
+        self.history = restore.load()  # keep what earlier runs saw, for `corral restore`
+        self.history_saved = 0.0
         self.terminations: dict[str, asyncio.Future] = {}
         self.lock = asyncio.Lock()
         self.app_active = True  # started by a claude hook, so iTerm is almost surely frontmost
@@ -81,6 +83,10 @@ class Daemon:
         self.tabs = self.tab_numbers()
         order = {iterm_id: i for i, iterm_id in enumerate(self.tabs)}
         self.sessions = sorted(sessions, key=lambda s: order.get(s.iterm_id, len(order)))
+        if now - self.history_saved >= restore.SAVE_EVERY:
+            self.history = restore.record(self.history, self.sessions, now)
+            restore.save(self.history)
+            self.history_saved = now
 
     def tab_numbers(self) -> dict[str, int]:
         """iterm_id -> its tab's number within its window (the ⌘N), in window/tab order."""
