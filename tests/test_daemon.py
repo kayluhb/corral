@@ -182,15 +182,17 @@ def test_waiting_tab_is_red_and_done_tab_green():
 TITLE = "\\(currentSession.presentationName)"
 
 
-def test_tab_title_starts_with_state_icon():
-    a, b, other = FakeSession("A"), FakeSession("B"), FakeSession("O")
-    app = FakeApp([a, b, other], current="A")
+def test_tab_title_shows_waiting_and_done_only():
+    a, b, c, other = FakeSession("A"), FakeSession("B"), FakeSession("C"), FakeSession("O")
+    app = FakeApp([a, b, c, other], current="O")
     d = daemon.Daemon(app)
     put("A", WAITING)
     put("B", WORKING)
+    put("C", DONE)
     tick(d)
     assert app.tab("A").titles == [f"✋ {TITLE}"]
-    assert app.tab("B").titles == [f"◐ {TITLE}"]
+    assert app.tab("C").titles == [f"🟢 {TITLE}"]
+    assert app.tab("B").titles == []  # Claude Code's own title already shows working
     assert app.tab("O").titles == []  # not a claude tab: never touched
     tick(d)
     assert app.tab("A").titles == [f"✋ {TITLE}"]  # unchanged: not set again
@@ -210,8 +212,12 @@ def test_tab_title_resets_when_claude_exits():
     a = FakeSession("A")
     app = FakeApp([a], current="A")
     d = daemon.Daemon(app)
-    put("A", DONE)
-    tick(d)  # focused, so done -> idle
+    put("A", WAITING)
+    tick(d)
+    put("A", WORKING)  # permission granted: back to Claude Code's own title
+    tick(d)
+    put("A", WAITING)
+    tick(d)
     store.delete("A")
     tick(d)
-    assert app.tab("A").titles == [f"· {TITLE}", ""]
+    assert app.tab("A").titles == [f"✋ {TITLE}", "", f"✋ {TITLE}", ""]

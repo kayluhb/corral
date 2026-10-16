@@ -95,12 +95,16 @@ class Daemon:
             self.history_saved = now
 
     async def retitle(self, sessions: list[state.Session]) -> None:
-        """Put the most urgent state icon at the front of each claude tab's title."""
+        """Put ✋ or 🟢 at the front of a claude tab's title when it needs you or is done.
+
+        Working and idle are left out: Claude Code's own title already marks them (◑ / ✳).
+        """
         states = {s.iterm_id: s.state for s in sessions}
         for window in self.app.terminal_windows:
             for tab in window.tabs:
                 found = [states[x.session_id] for x in tab.sessions if x.session_id in states]
-                icon = state.ICONS[state.most_urgent(found)] if found else None
+                urgent = state.most_urgent(found) if found else None
+                icon = state.ICONS[urgent] if urgent in (state.WAITING, state.DONE) else None
                 title = TAB_TITLE.format(icon=icon) if icon else ""
                 # Untracked tabs count as "", so corral only ever resets titles it set.
                 if self.titled.get(tab.tab_id, "") == title:

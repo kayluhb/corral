@@ -72,9 +72,9 @@ When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 ◐1
 going on it reads `all quiet`. A colour is never shown on the tab you're
 currently in. You get a notification only for sessions you're not looking at.
 
-Each claude tab's title also starts with its icon. In a tab split between several
-sessions, it shows the most urgent one (✋, then 🟢, ◐, ·). When claude exits, the title goes
-back to normal.
+A claude tab's title also starts with ✋ when it needs you or 🟢 when it's done (a split tab
+shows ✋ if any of its sessions is waiting). Working and idle tabs keep their normal title, since
+Claude Code already marks those itself. The title goes back to normal once the tab moves on.
 
 ## Development
 
