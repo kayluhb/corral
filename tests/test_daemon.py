@@ -23,18 +23,32 @@ class FakeSession:
         self.injected.append(data)
 
 
+class FakeTab:
+    def __init__(self, sessions):
+        self.sessions = sessions
+        self.tab_id = sessions[0].session_id
+        self.titles: list[str] = []  # titles set, in order
+
+    async def async_set_title(self, title):
+        self.titles.append(title)
+
+
 class FakeApp:
-    def __init__(self, sessions, current):
+    def __init__(self, sessions, current, tabs=None):
+        """tabs: lists of sessions sharing a tab (splits); default one tab per session."""
         self.sessions = {s.session_id: s for s in sessions}
         self.current = current
+        self.tab_list = [FakeTab(group) for group in (tabs or [[s] for s in sessions])]
 
     def get_session_by_id(self, session_id):
         return self.sessions.get(session_id)
 
+    def tab(self, session_id):
+        return next(t for t in self.tab_list if any(s.session_id == session_id for s in t.sessions))
+
     @property
     def terminal_windows(self):
-        tabs = [type("Tab", (), {"sessions": [s]})() for s in self.sessions.values()]
-        return [type("Window", (), {"tabs": tabs})()]
+        return [type("Window", (), {"tabs": self.tab_list})()]
 
     @property
     def current_window(self):
@@ -163,3 +177,41 @@ def test_tab_colours_off_clears_and_stops_painting():
 def test_waiting_tab_is_red_and_done_tab_green():
     assert daemon.COLORS[WAITING].red > 200 and daemon.COLORS[WAITING].green < 100
     assert daemon.COLORS[DONE].green > daemon.COLORS[DONE].red
+
+
+TITLE = "\\(currentSession.presentationName)"
+
+
+def test_tab_title_starts_with_state_icon():
+    a, b, other = FakeSession("A"), FakeSession("B"), FakeSession("O")
+    app = FakeApp([a, b, other], current="A")
+    d = daemon.Daemon(app)
+    put("A", WAITING)
+    put("B", WORKING)
+    tick(d)
+    assert app.tab("A").titles == [f"✋ {TITLE}"]
+    assert app.tab("B").titles == [f"🟡 {TITLE}"]
+    assert app.tab("O").titles == []  # not a claude tab: never touched
+    tick(d)
+    assert app.tab("A").titles == [f"✋ {TITLE}"]  # unchanged: not set again
+
+
+def test_split_tab_shows_most_urgent_icon():
+    a, b = FakeSession("A"), FakeSession("B")
+    app = FakeApp([a, b], current="A", tabs=[[a, b]])
+    d = daemon.Daemon(app)
+    put("A", WORKING)
+    put("B", WAITING)
+    tick(d)
+    assert app.tab("A").titles == [f"✋ {TITLE}"]
+
+
+def test_tab_title_resets_when_claude_exits():
+    a = FakeSession("A")
+    app = FakeApp([a], current="A")
+    d = daemon.Daemon(app)
+    put("A", DONE)
+    tick(d)  # focused, so done -> idle
+    store.delete("A")
+    tick(d)
+    assert app.tab("A").titles == [f"⚪ {TITLE}", ""]

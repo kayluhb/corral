@@ -24,6 +24,8 @@ COLORS = {
 }
 USE_OSC9 = True  # iTerm's own notification (tied to the tab); False falls back to osascript
 CURRENT_SESSION = iterm2.Reference("id")  # RPC arg bound to the invoking session
+# Interpolated by iTerm, so the rest of the title keeps following the session as usual.
+TAB_TITLE = "{icon} \\(currentSession.presentationName)"
 
 
 class Daemon:
@@ -32,6 +34,7 @@ class Daemon:
         self.active_id: str | None = None
         self.known: dict[str, str] = {}  # iterm_id -> last seen state
         self.painted: dict[str, str | None] = {}  # iterm_id -> colour key applied
+        self.titled: dict[str, str] = {}  # tab_id -> title applied ("" = iTerm's default)
         self.summary = state.summary([])
         self.sessions: list[state.Session] = []
         self.tabs: dict[str, int] = {}
@@ -80,6 +83,7 @@ class Daemon:
                 await self.paint(iterm_id, None)  # claude exited but the tab is still open
             except Exception as exc:
                 print(f"corral: clear {iterm_id}: {exc!r}")
+        await self.retitle(sessions)
         self.known = {s.iterm_id: s.state for s in sessions}
         self.summary = state.summary(sessions)
         self.tabs = self.tab_numbers()
@@ -89,6 +93,23 @@ class Daemon:
             self.history = restore.record(self.history, self.sessions, now)
             restore.save(self.history)
             self.history_saved = now
+
+    async def retitle(self, sessions: list[state.Session]) -> None:
+        """Put the most urgent state icon at the front of each claude tab's title."""
+        states = {s.iterm_id: s.state for s in sessions}
+        for window in self.app.terminal_windows:
+            for tab in window.tabs:
+                found = [states[x.session_id] for x in tab.sessions if x.session_id in states]
+                icon = state.ICONS[state.most_urgent(found)] if found else None
+                title = TAB_TITLE.format(icon=icon) if icon else ""
+                # Untracked tabs count as "", so corral only ever resets titles it set.
+                if self.titled.get(tab.tab_id, "") == title:
+                    continue
+                try:
+                    await tab.async_set_title(title)
+                    self.titled[tab.tab_id] = title
+                except Exception as exc:
+                    print(f"corral: title {tab.tab_id}: {exc!r}")
 
     def tab_numbers(self) -> dict[str, int]:
         """iterm_id -> its tab's number within its window (the ⌘N), in window/tab order."""

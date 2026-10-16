@@ -72,6 +72,10 @@ When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 🟡
 going on it reads `all quiet`. A colour is never shown on the tab you're
 currently in. You get a notification only for sessions you're not looking at.
 
+Each claude tab's title also starts with its icon. In a tab split between several
+sessions, it shows the most urgent one (✋, then 🟢, 🟡, ⚪). When claude exits, the title goes
+back to normal.
+
 ## Development
 
 ```sh

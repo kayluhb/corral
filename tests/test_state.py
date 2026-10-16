@@ -232,3 +232,9 @@ def test_grouping_is_off_by_default():
 
 def test_colour_icons():
     assert state.ICONS == {WAITING: "✋", WORKING: "🟡", DONE: "🟢", IDLE: "⚪"}
+
+
+def test_most_urgent():
+    assert state.most_urgent([IDLE, WORKING, DONE]) == DONE
+    assert state.most_urgent([DONE, WAITING]) == WAITING
+    assert state.most_urgent([IDLE]) == IDLE

@@ -178,6 +178,10 @@ def status_variants(
     return [v for i, v in enumerate(variants) if v and v not in variants[:i]]
 
 
+def most_urgent(states: Iterable[str]) -> str:
+    return min(states, key=PRIORITY.index)
+
+
 def tab_color_key(state: str, is_active: bool) -> str | None:
     if is_active or state not in (WAITING, DONE):
         return None
