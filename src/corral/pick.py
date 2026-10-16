@@ -39,9 +39,10 @@ def _fzf() -> str | None:
     return next((p for p in FZF_FALLBACKS if Path(p).exists()), None)
 
 
-def run(out: Path) -> int:
+def run(out: Path, only: set[str] | None = None) -> int:
+    """only: iTerm ids to offer (the picker's window); None offers every session."""
     out.write_text("")
-    sessions = state.ordered(store.load_all())
+    sessions = state.ordered(s for s in store.load_all() if only is None or s.iterm_id in only)
     if not sessions:
         print("corral: no claude sessions")
         time.sleep(1)

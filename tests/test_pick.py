@@ -23,3 +23,21 @@ def test_parse_choice():
     assert pick.parse_choice("ID-1\t✋ corral ...\n") == "ID-1"
     assert pick.parse_choice("") is None
     assert pick.parse_choice("../x\tjunk") is None
+
+
+def test_run_lists_only_the_given_sessions(tmp_path, monkeypatch):
+    from corral import store
+
+    monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
+    store.write(Session("ID-1", "c", "/p/mine", WAITING, 1.0))
+    store.write(Session("ID-2", "c", "/p/elsewhere", WAITING, 1.0))
+    seen = {}
+
+    def fake_run(cmd, input, **kwargs):
+        seen["input"] = input
+        return type("Result", (), {"returncode": 1, "stdout": ""})()
+
+    monkeypatch.setattr(pick, "_fzf", lambda: "fzf")
+    monkeypatch.setattr(pick.subprocess, "run", fake_run)
+    pick.run(tmp_path / "out", only={"ID-1"})
+    assert "mine" in seen["input"] and "elsewhere" not in seen["input"]

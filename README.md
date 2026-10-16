@@ -3,7 +3,8 @@
 Keyboard-first status for many `claude` sessions running in ordinary iTerm2 tabs.
 Claude Code hooks record each session's state. A small daemon, started by the hook and
 talking to iTerm2's Python API, uses that state to show a status bar summary, colour the tabs that need you and send notifications. Three
-hotkeys jump to the sessions that need you. Nothing replaces your tabs or needs clicking.
+hotkeys jump to the sessions that need you. Each window shows and jumps between only its own
+claude tabs. Nothing replaces your tabs or needs clicking.
 
 ## Install
 
@@ -29,11 +30,11 @@ prompt. It exits when iTerm quits and starts again with the next claude event.
 
 | Key | Function | Does |
 |---|---|---|
-| ⌘J | `corral_next_waiting` | Focus the session that has waited longest for you. Press again to cycle. |
+| ⌘J | `corral_next_waiting` | Focus the session in this window that has waited longest for you. Press again to cycle. |
 | ⌘⇧J | `corral_next_done` | Same, for finished sessions you haven't looked at yet. |
-| ⌘P | `corral_pick` | Open an fzf switcher in a temporary split. Enter jumps to the session; Esc cancels. |
+| ⌘P | `corral_pick` | Open an fzf switcher over this window's sessions in a temporary split. Enter jumps to the session; Esc or ⌘P again cancels. |
 
-Click the corral status bar item to open a list of every claude tab; click one to jump to it.
+Click the corral status bar item to open a list of this window's claude tabs; click one to jump to it.
 
 ## Settings
 
@@ -66,10 +67,11 @@ one at a time, aren't included, and neither is anything still running.
 | done | 🟢 | green | Claude finished. Becomes idle once you focus the tab |
 | idle | · | none | Session open, nothing pending |
 
-The status bar lists every claude tab in tab order: its tab number (the ⌘N), state and
+The status bar lists the claude tabs in its own window, in tab order: its tab number (the ⌘N), state and
 project, with the tab you're in bracketed, for example `1✋ hydrogen  [2◐ corral]  3🟢 lasso`.
 When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 ◐1 🟢1`). With nothing
-going on it reads `all quiet`. A colour is never shown on the tab you're
+going on in the window it reads `all quiet`. Tab colours, titles and notifications
+still cover every window. A colour is never shown on the tab you're
 currently in. You get a notification only for sessions you're not looking at.
 
 A claude tab's title also starts with ✋ when it needs you or 🟢 when it's done (a split tab

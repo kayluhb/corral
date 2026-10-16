@@ -22,6 +22,12 @@ class FakeSession:
     async def async_inject(self, data):
         self.injected.append(data)
 
+    async def async_split_pane(self, **kwargs):
+        raise AssertionError("opened a second picker")
+
+    async def async_close(self, force=False):
+        self.closed = True
+
 
 class FakeTab:
     def __init__(self, sessions):
@@ -34,11 +40,16 @@ class FakeTab:
 
 
 class FakeApp:
-    def __init__(self, sessions, current, tabs=None):
-        """tabs: lists of sessions sharing a tab (splits); default one tab per session."""
+    def __init__(self, sessions, current, tabs=None, windows=None):
+        """tabs: lists of sessions sharing a tab (splits); default one tab per session.
+
+        windows: lists of tabs (each a list of sessions); overrides tabs.
+        """
         self.sessions = {s.session_id: s for s in sessions}
         self.current = current
-        self.tab_list = [FakeTab(group) for group in (tabs or [[s] for s in sessions])]
+        windows = windows or [tabs or [[s] for s in sessions]]
+        self.window_tabs = [[FakeTab(group) for group in w] for w in windows]
+        self.tab_list = [tab for w in self.window_tabs for tab in w]
 
     def get_session_by_id(self, session_id):
         return self.sessions.get(session_id)
@@ -48,7 +59,7 @@ class FakeApp:
 
     @property
     def terminal_windows(self):
-        return [type("Window", (), {"tabs": self.tab_list})()]
+        return [type("Window", (), {"tabs": tabs})() for tabs in self.window_tabs]
 
     @property
     def current_window(self):
@@ -132,6 +143,56 @@ def test_status_bar_lists_sessions_in_tab_order():
     tick(d)
     assert d.status("C")[0] == "1◐ B  3✋ A"
     assert d.status("A")[0] == "1◐ B  [3✋ A]"
+
+
+def two_windows():
+    a, b, c = FakeSession("A"), FakeSession("B"), FakeSession("C")
+    d = daemon.Daemon(FakeApp([a, b, c], current="A", windows=[[[a], [b]], [[c]]]))
+    put("A", WORKING)
+    put("B", WAITING)
+    put("C", WAITING)
+    tick(d)
+    return d
+
+
+def test_status_bar_lists_only_its_own_window():
+    d = two_windows()
+    assert d.status("A")[0] == "[1◐ A]  2✋ B"
+    assert d.status("C")[0] == "[1✋ C]"
+
+
+def test_status_bar_is_quiet_in_a_window_without_claude():
+    other = FakeSession("O")
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a, other], current="A", windows=[[[a]], [[other]]]))
+    put("A", WAITING)
+    tick(d)
+    assert d.status("O") == [state.QUIET]
+
+
+def test_jump_stays_in_the_current_window(monkeypatch):
+    d = two_windows()
+    focused = []
+
+    async def focus(iterm_id):
+        focused.append(iterm_id)
+
+    monkeypatch.setattr(d, "focus", focus)
+    asyncio.run(d.jump(WAITING, "C"))  # C is the only waiting session in its window
+    asyncio.run(d.jump(WAITING, "A"))
+    assert focused == ["C", "B"]
+
+
+def test_pick_again_closes_the_open_picker():
+    a, picker = FakeSession("A"), FakeSession("P")
+    d = daemon.Daemon(FakeApp([a, picker], current="P", tabs=[[a, picker]]))
+
+    async def run():
+        d.terminations["P"] = asyncio.get_running_loop().create_future()
+        await d.pick("P")  # pressed from inside the picker pane
+
+    asyncio.run(run())
+    assert getattr(picker, "closed", False)
 
 
 def test_tick_records_restore_history_without_forgetting_earlier_sessions():

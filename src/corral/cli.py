@@ -13,13 +13,15 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command")
     p = sub.add_parser("pick", help="fuzzy-pick a claude session")
     p.add_argument("--out", type=Path, required=True, help="file to write the chosen iTerm id to")
+    p.add_argument("--only", help="comma-separated iTerm ids to offer (default: all)")
     sub.add_parser("daemon", help="run the iTerm daemon (launchd runs this)")
     sub.add_parser("restore", help="reopen the claude sessions that were running last time")
     sub.add_parser("settings", help="change corral's settings (arrow-key menu)")
     sub.add_parser("setup", help="add the corral status bar item and hotkeys to iTerm")
     args = parser.parse_args()
     if args.command == "pick":
-        sys.exit(pick.run(args.out))
+        only = set(filter(None, args.only.split(","))) if args.only is not None else None
+        sys.exit(pick.run(args.out, only))
     if args.command == "settings":
         sys.exit(settings.menu())
     if args.command in (None, "restore"):
