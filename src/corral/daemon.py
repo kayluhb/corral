@@ -125,8 +125,21 @@ class Daemon:
             for session in tab.sessions
         }
 
+    def window_ids(self, session_id: str | None) -> set[str]:
+        """iTerm ids of every session in the window that holds session_id."""
+        for window in self.app.terminal_windows:
+            ids = {s.session_id for tab in window.tabs for s in tab.sessions}
+            if session_id in ids:
+                return ids
+        return set()
+
+    def in_window(self, sessions: list[state.Session], session_id: str | None):
+        ids = self.window_ids(session_id)
+        return [s for s in sessions if s.iterm_id in ids]
+
     def status(self, session_id: str | None) -> list[str]:
-        return state.status_variants(self.sessions, self.tabs, session_id, self.settings.group)
+        sessions = self.in_window(self.sessions, session_id)
+        return state.status_variants(sessions, self.tabs, session_id, self.settings.group)
 
     async def _update(self, s: state.Session, now: float) -> state.Session:
         is_active = s.iterm_id == self.active_id
@@ -168,7 +181,7 @@ class Daemon:
         subprocess.Popen(["osascript", "-e", script])
 
     async def jump(self, st: str, current_id: str) -> None:
-        target = state.next_target(self.live_sessions(), st, current_id)
+        target = state.next_target(self.in_window(self.live_sessions(), current_id), st, current_id)
         if target is not None:
             await self.focus(target)
 
@@ -182,11 +195,22 @@ class Daemon:
         origin = self.app.get_session_by_id(origin_id)
         if origin is None:
             return
+        window = self.window_ids(origin_id)
+        open_pickers = [p for p in self.terminations if p in window]
+        if open_pickers:  # ⌘P again toggles the picker off instead of stacking another
+            for picker_id in open_pickers:
+                picker = self.app.get_session_by_id(picker_id)
+                if picker is not None:
+                    await picker.async_close(force=True)
+            return
         fd, out = tempfile.mkstemp(prefix="corral-pick-")
         os.close(fd)
+        only = ",".join(sorted(window))
+        args = [CORRAL_BIN, "pick", "--out", out, "--only", only]
+        command = " ".join(shlex.quote(a) for a in args)
         profile = iterm2.LocalWriteOnlyProfile()
         profile.set_use_custom_command("Yes")
-        profile.set_command(f"{shlex.quote(CORRAL_BIN)} pick --out {shlex.quote(out)}")
+        profile.set_command(command)
         profile.set_close_sessions_on_end(True)
         picker = await origin.async_split_pane(vertical=False, profile_customizations=profile)
         done = asyncio.get_running_loop().create_future()
@@ -274,7 +298,7 @@ async def main(connection: iterm2.Connection) -> None:
 
     async def on_click(session_id):
         group = daemon.settings.group
-        sessions, tabs = daemon.sessions, daemon.tabs
+        sessions, tabs = daemon.in_window(daemon.sessions, session_id), daemon.tabs
         html = popover.render(sessions, tabs, session_id, links.url, links.token, group)
         size = iterm2.util.Size(popover.WIDTH, popover.height(popover.row_count(sessions, group)))
         await component.async_open_popover(session_id, html, size)
