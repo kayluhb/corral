@@ -32,6 +32,7 @@ body { margin: 0; padding: 6px; font: 13px -apple-system, system-ui, sans-serif;
 .tab { color: var(--muted); min-width: 1.2em; text-align: right; }
 .prompt { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .quiet { padding: 8px; color: var(--muted); }
+.group { padding: 8px 8px 2px; font-weight: 600; }
 """
 
 ROW_HEIGHT = 27
@@ -44,20 +45,34 @@ def render(
     current: str | None,
     url: str,
     token: str,
+    group: bool = False,
 ) -> str:
-    rows = []
-    for s in sessions:
+    def row(s: state.Session, show_project: bool) -> str:
         cls = "row current" if s.iterm_id == current else "row"
         href = html.escape(f"{url}/{s.iterm_id}?t={token}")
-        rows.append(
+        project = state.project_name(s.cwd) if show_project else ""
+        return (
             f'<a class="{cls}" href="{href}">'
             f'<span class="tab">{tabs.get(s.iterm_id, "")}</span>'
             f"<span>{state.ICONS[s.state]}</span>"
-            f"<span>{html.escape(state.project_name(s.cwd))}</span>"
-            f'<span class="prompt">{html.escape(s.last_prompt)}</span></a>'
+            + (f"<span>{html.escape(project)}</span>" if project else "")
+            + f'<span class="prompt">{html.escape(s.last_prompt)}</span></a>'
         )
-    body = "".join(rows) or f'<div class="quiet">{html.escape(state.QUIET)}</div>'
+
+    if group:
+        body = "".join(
+            f'<div class="group">{html.escape(project)}</div>'
+            + "".join(row(s, show_project=False) for s in members)
+            for project, members in state.by_project(sessions)
+        )
+    else:
+        body = "".join(row(s, show_project=True) for s in sessions)
+    body = body or f'<div class="quiet">{html.escape(state.QUIET)}</div>'
     return f'<!doctype html><meta charset="utf-8"><style>{_CSS}</style>{body}'
+
+
+def row_count(sessions: list[state.Session], group: bool) -> int:
+    return len(sessions) + (len(state.by_project(sessions)) if group else 0)
 
 
 def height(count: int) -> int:

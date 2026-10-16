@@ -136,20 +136,42 @@ def summary(sessions: Iterable[Session]) -> str:
     return " ".join(parts) or QUIET
 
 
+def by_project(sessions: Iterable[Session]) -> list[tuple[str, list[Session]]]:
+    """Sessions grouped by project, groups in order of first appearance."""
+    groups: dict[str, list[Session]] = {}
+    for s in sessions:
+        groups.setdefault(project_name(s.cwd), []).append(s)
+    return list(groups.items())
+
+
 def status_variants(
-    sessions: Iterable[Session], tabs: dict[str, int], current: str | None
+    sessions: Iterable[Session],
+    tabs: dict[str, int],
+    current: str | None,
+    group: bool = False,
 ) -> list[str]:
     """Status bar texts, longest first; iTerm shows the longest that fits.
 
     tabs maps iterm_id -> tab number (the ⌘N for it); current is bracketed.
+    With group, sessions of one project collapse into one entry: "1 hydrogen 🐄🐎".
     """
     sessions = list(sessions)
 
+    def mark(text: str, members: list[Session]) -> str:
+        return f"[{text}]" if any(s.iterm_id == current for s in members) else text
+
     def entry(s: Session) -> str:
-        text = f"{tabs.get(s.iterm_id, '')}{ICONS[s.state]} {project_name(s.cwd)}"
-        return f"[{text}]" if s.iterm_id == current else text
+        return mark(f"{tabs.get(s.iterm_id, '')}{ICONS[s.state]} {project_name(s.cwd)}", [s])
+
+    def group_entry(project: str, members: list[Session]) -> str:
+        if len(members) == 1:
+            return entry(members[0])
+        icons = "".join(ICONS[s.state] for s in members)
+        return mark(f"{tabs.get(members[0].iterm_id, '')} {project} {icons}".strip(), members)
 
     def listing(items: Iterable[Session]) -> str:
+        if group:
+            return "  ".join(group_entry(p, m) for p, m in by_project(items))
         return "  ".join(entry(s) for s in items)
 
     variants = [listing(sessions), listing(s for s in sessions if s.state != IDLE)]

@@ -116,8 +116,8 @@ def test_status_bar_lists_sessions_in_tab_order():
     put("A", WAITING)
     put("B", WORKING)
     tick(d)
-    assert d.status("C")[0] == "1🐎 B  3🐄 A"
-    assert d.status("A")[0] == "1🐎 B  [3🐄 A]"
+    assert d.status("C", {})[0] == "1🐎 B  3🐄 A"
+    assert d.status("A", {})[0] == "1🐎 B  [3🐄 A]"
 
 
 def test_tick_records_restore_history_without_forgetting_earlier_sessions():
@@ -132,3 +132,14 @@ def test_tick_records_restore_history_without_forgetting_earlier_sessions():
     history = restore.load()
     assert set(history) == {"from-last-time", "c"}
     assert history["c"]["cwd"] == "/p/A"
+
+
+def test_group_knob_turns_on_grouping_for_status_and_popover():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="A"))
+    store.write(Session("A", "c1", "/p/hydrogen", WORKING, 1.0))
+    store.write(Session("B", "c2", "/p/hydrogen", WAITING, 1.0))
+    tick(d)
+    assert d.status("A", {})[0] == "[1🐎 hydrogen]  2🐄 hydrogen"
+    assert d.status("A", {"group": True})[0] == "[1 hydrogen 🐎🐄]"
+    assert d.grouping("A") is True

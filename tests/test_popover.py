@@ -1,7 +1,7 @@
 import asyncio
 
 from corral import popover
-from corral.state import DONE, WAITING, Session
+from corral.state import DONE, IDLE, WAITING, Session
 
 URL = "http://127.0.0.1:5555/focus"
 
@@ -56,3 +56,14 @@ def test_server_calls_focus_for_valid_requests_only():
 
     asyncio.run(scenario())
     assert focused == ["A-1"]
+
+
+def test_render_grouped_puts_rows_under_project_headers():
+    ss = [
+        mk("A-1", WAITING, "/p/hydrogen", "fix"),
+        mk("B-2", DONE, "/p/lasso"),
+        mk("C-3", IDLE, "/p/hydrogen", "tests"),
+    ]
+    html = popover.render(ss, {}, None, URL, "tok", group=True)
+    assert html.count('class="group"') == 2
+    assert html.index("hydrogen") < html.index("fix") < html.index("tests") < html.index("lasso")

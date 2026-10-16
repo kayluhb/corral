@@ -206,3 +206,25 @@ def test_paste_placeholders_are_stripped():
     assert s.last_prompt == "see ok"
     only_image = state.transition(mk(prompt="old"), prompt_ev("[Image #1]"), "A", WORKING, 1.0)
     assert only_image.last_prompt == "old"
+
+
+def test_grouped_status_collapses_sessions_of_one_project():
+    ss = [
+        mk("a", WAITING, cwd="/p/hydrogen"),
+        mk("b", WORKING, cwd="/p/hydrogen"),
+        mk("c", DONE, cwd="/p/lasso"),
+        mk("d", IDLE, cwd="/p/hydrogen"),
+        mk("e", WORKING, cwd="/p/corral"),
+    ]
+    tabs = {"a": 1, "b": 1, "c": 3, "d": 2, "e": 4}
+    assert state.status_variants(ss, tabs, "e", group=True) == [
+        "1 hydrogen 🐄🐎💤  3🌵 lasso  [4🐎 corral]",
+        "1 hydrogen 🐄🐎  3🌵 lasso  [4🐎 corral]",
+        "🐄1 🐎2 🌵1",
+    ]
+    assert state.status_variants(ss, tabs, "b", group=True)[0].startswith("[1 hydrogen 🐄🐎💤]")
+
+
+def test_grouping_is_off_by_default():
+    ss = [mk("a", WAITING, cwd="/p/h"), mk("b", WORKING, cwd="/p/h")]
+    assert state.status_variants(ss, {}, None)[0] == "🐄 h  🐎 h"

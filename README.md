@@ -35,6 +35,13 @@ prompt. It exits when iTerm quits and starts again with the next claude event.
 
 Click the corral status bar item to open a list of every claude tab; click one to jump to it.
 
+## Grouping by project
+
+Optional, off by default. Open Settings → Profiles → Session → Configure Status Bar, click the
+corral item, choose **Configure Component**, and tick **Group by project**. Sessions in the same
+project then collapse into one entry, for example `1 hydrogen 🐄🐎💤`. The popover lists them
+under project headings.
+
 ## Restore
 
 Run `corral` (or `corral restore`) to reopen the claude sessions that were running when iTerm
