@@ -43,7 +43,7 @@ Changes apply straight away. They're stored in `~/.config/corral/settings.json`,
 
 | Setting | Values | Default |
 |---|---|---|
-| Group by project | on / off: sessions of one project collapse into one entry, like `1 hydrogen ✋🟡⚪`, and the popover lists them under project headings | off |
+| Group by project | on / off: sessions of one project collapse into one entry, like `1 hydrogen ✋◐·`, and the popover lists them under project headings | off |
 | Tab colours | on / off | on |
 
 ## Restore
@@ -62,18 +62,18 @@ one at a time, aren't included, and neither is anything still running.
 | State | Icon | Tab colour | Meaning |
 |---|---|---|---|
 | waiting | ✋ | red | Permission prompt, question or agent input needed |
-| working | 🟡 | none | Prompt submitted or tool running |
+| working | ◐ | none | Prompt submitted or tool running |
 | done | 🟢 | green | Claude finished. Becomes idle once you focus the tab |
-| idle | ⚪ | none | Session open, nothing pending |
+| idle | · | none | Session open, nothing pending |
 
 The status bar lists every claude tab in tab order: its tab number (the ⌘N), state and
-project, with the tab you're in bracketed, for example `1✋ hydrogen  [2🟡 corral]  3🟢 lasso`.
-When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 🟡1 🟢1`). With nothing
+project, with the tab you're in bracketed, for example `1✋ hydrogen  [2◐ corral]  3🟢 lasso`.
+When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 ◐1 🟢1`). With nothing
 going on it reads `all quiet`. A colour is never shown on the tab you're
 currently in. You get a notification only for sessions you're not looking at.
 
 Each claude tab's title also starts with its icon. In a tab split between several
-sessions, it shows the most urgent one (✋, then 🟢, 🟡, ⚪). When claude exits, the title goes
+sessions, it shows the most urgent one (✋, then 🟢, ◐, ·). When claude exits, the title goes
 back to normal.
 
 ## Development

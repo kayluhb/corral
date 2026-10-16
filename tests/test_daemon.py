@@ -130,8 +130,8 @@ def test_status_bar_lists_sessions_in_tab_order():
     put("A", WAITING)
     put("B", WORKING)
     tick(d)
-    assert d.status("C")[0] == "1🟡 B  3✋ A"
-    assert d.status("A")[0] == "1🟡 B  [3✋ A]"
+    assert d.status("C")[0] == "1◐ B  3✋ A"
+    assert d.status("A")[0] == "1◐ B  [3✋ A]"
 
 
 def test_tick_records_restore_history_without_forgetting_earlier_sessions():
@@ -154,10 +154,10 @@ def test_grouping_comes_from_corral_settings(monkeypatch):
     store.write(Session("A", "c1", "/p/hydrogen", WORKING, 1.0))
     store.write(Session("B", "c2", "/p/hydrogen", WAITING, 1.0))
     tick(d)
-    assert d.status("A")[0] == "[1🟡 hydrogen]  2✋ hydrogen"
+    assert d.status("A")[0] == "[1◐ hydrogen]  2✋ hydrogen"
     settings.save(settings.Settings(group=True))
     tick(d)
-    assert d.status("A")[0] == "[1 hydrogen 🟡✋]"
+    assert d.status("A")[0] == "[1 hydrogen ◐✋]"
 
 
 def test_tab_colours_off_clears_and_stops_painting():
@@ -190,7 +190,7 @@ def test_tab_title_starts_with_state_icon():
     put("B", WORKING)
     tick(d)
     assert app.tab("A").titles == [f"✋ {TITLE}"]
-    assert app.tab("B").titles == [f"🟡 {TITLE}"]
+    assert app.tab("B").titles == [f"◐ {TITLE}"]
     assert app.tab("O").titles == []  # not a claude tab: never touched
     tick(d)
     assert app.tab("A").titles == [f"✋ {TITLE}"]  # unchanged: not set again
@@ -214,4 +214,4 @@ def test_tab_title_resets_when_claude_exits():
     tick(d)  # focused, so done -> idle
     store.delete("A")
     tick(d)
-    assert app.tab("A").titles == [f"⚪ {TITLE}", ""]
+    assert app.tab("A").titles == [f"· {TITLE}", ""]

@@ -144,8 +144,8 @@ def test_next_target_none_when_empty():
 
 def test_summary():
     ss = [mk("a", WAITING), mk("b", WAITING), mk("c", WORKING), mk("d", DONE), mk("e", IDLE)]
-    assert state.summary(ss) == "✋2 🟡1 🟢1"
-    assert state.summary([mk("a", WORKING)]) == "🟡1"
+    assert state.summary(ss) == "✋2 ◐1 🟢1"
+    assert state.summary([mk("a", WORKING)]) == "◐1"
     assert state.summary([]) == "all quiet"
 
 
@@ -176,15 +176,15 @@ def test_status_variants_longest_first():
     ]
     tabs = {"a": 3, "b": 4, "c": 6}
     assert state.status_variants(ss, tabs, "c") == [
-        "3✋ hydrogen  4⚪ sanity  [6🟢 lasso]",
+        "3✋ hydrogen  4· sanity  [6🟢 lasso]",
         "3✋ hydrogen  [6🟢 lasso]",
         "✋1 🟢1",
     ]
 
 
 def test_status_variants_dedupes_and_handles_empty():
-    assert state.status_variants([mk("a", WORKING, cwd="/p/x")], {}, None) == ["🟡 x", "🟡1"]
-    assert state.status_variants([mk("a", IDLE, cwd="/p/x")], {}, None) == ["⚪ x", state.QUIET]
+    assert state.status_variants([mk("a", WORKING, cwd="/p/x")], {}, None) == ["◐ x", "◐1"]
+    assert state.status_variants([mk("a", IDLE, cwd="/p/x")], {}, None) == ["· x", state.QUIET]
     assert state.status_variants([], {}, None) == [state.QUIET]
 
 
@@ -218,20 +218,20 @@ def test_grouped_status_collapses_sessions_of_one_project():
     ]
     tabs = {"a": 1, "b": 1, "c": 3, "d": 2, "e": 4}
     assert state.status_variants(ss, tabs, "e", group=True) == [
-        "1 hydrogen ✋🟡⚪  3🟢 lasso  [4🟡 corral]",
-        "1 hydrogen ✋🟡  3🟢 lasso  [4🟡 corral]",
-        "✋1 🟡2 🟢1",
+        "1 hydrogen ✋◐·  3🟢 lasso  [4◐ corral]",
+        "1 hydrogen ✋◐  3🟢 lasso  [4◐ corral]",
+        "✋1 ◐2 🟢1",
     ]
-    assert state.status_variants(ss, tabs, "b", group=True)[0].startswith("[1 hydrogen ✋🟡⚪]")
+    assert state.status_variants(ss, tabs, "b", group=True)[0].startswith("[1 hydrogen ✋◐·]")
 
 
 def test_grouping_is_off_by_default():
     ss = [mk("a", WAITING, cwd="/p/h"), mk("b", WORKING, cwd="/p/h")]
-    assert state.status_variants(ss, {}, None)[0] == "✋ h  🟡 h"
+    assert state.status_variants(ss, {}, None)[0] == "✋ h  ◐ h"
 
 
 def test_colour_icons():
-    assert state.ICONS == {WAITING: "✋", WORKING: "🟡", DONE: "🟢", IDLE: "⚪"}
+    assert state.ICONS == {WAITING: "✋", WORKING: "◐", DONE: "🟢", IDLE: "·"}
 
 
 def test_most_urgent():

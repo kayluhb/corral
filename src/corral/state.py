@@ -16,7 +16,7 @@ DELETE = "delete"
 PRIORITY = (WAITING, DONE, WORKING, IDLE)
 
 
-ICONS = {WAITING: "✋", WORKING: "🟡", DONE: "🟢", IDLE: "⚪"}
+ICONS = {WAITING: "✋", WORKING: "◐", DONE: "🟢", IDLE: "·"}
 QUIET = "all quiet"  # status bar text when nothing is going on
 NEEDS_YOU = "{name} needs you"  # notification texts; {name} is the project
 FINISHED = "{name} is done"
@@ -152,7 +152,7 @@ def status_variants(
     """Status bar texts, longest first; iTerm shows the longest that fits.
 
     tabs maps iterm_id -> tab number (the ⌘N for it); current is bracketed.
-    With group, sessions of one project collapse into one entry: "1 hydrogen ✋🟡".
+    With group, sessions of one project collapse into one entry: "1 hydrogen ✋◐".
     """
     sessions = list(sessions)
 
