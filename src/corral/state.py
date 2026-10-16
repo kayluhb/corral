@@ -26,6 +26,7 @@ PROMPT_LIMIT = 80
 
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 _SPACES = re.compile(r"\s+")
+_PLACEHOLDER = re.compile(r"\[(?:Image|Pasted text) #\d+[^\]]*\]")  # Claude Code paste markers
 
 
 @dataclass
@@ -69,7 +70,7 @@ def transition(
     since = prev.since if prev.state == target else now
     last_prompt = prev.last_prompt
     if name == "UserPromptSubmit":
-        last_prompt = clean(str(event.get("prompt") or ""), PROMPT_LIMIT)
+        last_prompt = human_prompt(str(event.get("prompt") or "")) or last_prompt
     return replace(
         prev,
         claude_session_id=str(event.get("session_id") or prev.claude_session_id),
@@ -85,6 +86,13 @@ def _is_idle_prompt(event: dict) -> bool:
         event.get("hook_event_name") == "Notification"
         and event.get("notification_type") == "idle_prompt"
     )
+
+
+def human_prompt(text: str) -> str:
+    """The prompt as you typed it, or "" for system-injected ones (<task-notification> etc.)."""
+    if text.lstrip().startswith("<"):
+        return ""
+    return clean(_PLACEHOLDER.sub(" ", text), PROMPT_LIMIT)
 
 
 def clean(text: str, limit: int) -> str:

@@ -186,3 +186,23 @@ def test_status_variants_dedupes_and_handles_empty():
     assert state.status_variants([mk("a", WORKING, cwd="/p/x")], {}, None) == ["🐎 x", "🐎1"]
     assert state.status_variants([mk("a", IDLE, cwd="/p/x")], {}, None) == ["💤 x", state.QUIET]
     assert state.status_variants([], {}, None) == [state.QUIET]
+
+
+def prompt_ev(text):
+    return {"hook_event_name": "UserPromptSubmit", "prompt": text}
+
+
+def test_system_injected_prompts_keep_the_last_human_prompt():
+    prev = mk(st=DONE, prompt="fix the bug")
+    for text in ("<task-notification> <task-id>b2t</task-id>", ' <agent-message from="a1">hi'):
+        s = state.transition(prev, prompt_ev(text), "A", WORKING, 2.0)
+        assert s.state == WORKING and s.last_prompt == "fix the bug"
+
+
+def test_paste_placeholders_are_stripped():
+    s = state.transition(mk(), prompt_ev("[Image #4] why is lasso green?"), "A", WORKING, 1.0)
+    assert s.last_prompt == "why is lasso green?"
+    s = state.transition(mk(), prompt_ev("see [Pasted text #2 +40 lines] ok"), "A", WORKING, 1.0)
+    assert s.last_prompt == "see ok"
+    only_image = state.transition(mk(prompt="old"), prompt_ev("[Image #1]"), "A", WORKING, 1.0)
+    assert only_image.last_prompt == "old"
