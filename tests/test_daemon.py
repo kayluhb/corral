@@ -192,7 +192,7 @@ def test_tab_title_shows_waiting_and_done_only():
     tick(d)
     assert app.tab("A").titles == [f"✋ {TITLE}"]
     assert app.tab("C").titles == [f"🟢 {TITLE}"]
-    assert app.tab("B").titles == []  # Claude Code's own title already shows working
+    assert app.tab("B").titles == [""]  # Claude Code's own title already shows working
     assert app.tab("O").titles == []  # not a claude tab: never touched
     tick(d)
     assert app.tab("A").titles == [f"✋ {TITLE}"]  # unchanged: not set again
@@ -221,3 +221,14 @@ def test_tab_title_resets_when_claude_exits():
     store.delete("A")
     tick(d)
     assert app.tab("A").titles == [f"✋ {TITLE}", "", f"✋ {TITLE}", ""]
+
+
+def test_fresh_daemon_clears_titles_an_earlier_run_left_on_claude_tabs():
+    a, other = FakeSession("A"), FakeSession("O")
+    app = FakeApp([a, other], current="O")
+    d = daemon.Daemon(app)
+    put("A", WORKING)
+    tick(d)
+    tick(d)
+    assert app.tab("A").titles == [""]  # reset once, not every tick
+    assert app.tab("O").titles == []

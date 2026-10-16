@@ -106,8 +106,9 @@ class Daemon:
                 urgent = state.most_urgent(found) if found else None
                 icon = state.ICONS[urgent] if urgent in (state.WAITING, state.DONE) else None
                 title = TAB_TITLE.format(icon=icon) if icon else ""
-                # Untracked tabs count as "", so corral only ever resets titles it set.
-                if self.titled.get(tab.tab_id, "") == title:
+                # Non-claude tabs are never touched. A claude tab this run hasn't titled yet gets
+                # set once even to "", clearing an icon an earlier daemon may have left behind.
+                if self.titled.get(tab.tab_id, None if found else "") == title:
                     continue
                 try:
                     await tab.async_set_title(title)
