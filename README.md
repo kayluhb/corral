@@ -35,12 +35,17 @@ prompt. It exits when iTerm quits and starts again with the next claude event.
 
 Click the corral status bar item to open a list of every claude tab; click one to jump to it.
 
-## Grouping by project
+## Settings
 
-Optional, off by default. Open Settings → Profiles → Session → Configure Status Bar, click the
-corral item, choose **Configure Component**, and tick **Group by project**. Sessions in the same
-project then collapse into one entry, for example `1 hydrogen 🐄🐎💤`. The popover lists them
-under project headings.
+Run `corral settings` for an arrow-key menu (↑↓ to move, Enter or Space to change, q to quit).
+Changes apply straight away. They're stored in `~/.config/corral/settings.json`, or the path in
+`CORRAL_CONFIG`.
+
+| Setting | Values | Default |
+|---|---|---|
+| Group by project | on / off: sessions of one project collapse into one entry, like `1 hydrogen 🐄🐎💤`, and the popover lists them under project headings | off |
+| Theme | ranch (🐄🐎🌵💤, cowboy notifications) / classic (✋⚙✓·, plain text) | ranch |
+| Tab colours | on / off | on |
 
 ## Restore
 

@@ -46,6 +46,7 @@ def render(
     url: str,
     token: str,
     group: bool = False,
+    theme: state.Theme = state.RANCH,
 ) -> str:
     def row(s: state.Session, show_project: bool) -> str:
         cls = "row current" if s.iterm_id == current else "row"
@@ -54,7 +55,7 @@ def render(
         return (
             f'<a class="{cls}" href="{href}">'
             f'<span class="tab">{tabs.get(s.iterm_id, "")}</span>'
-            f"<span>{state.ICONS[s.state]}</span>"
+            f"<span>{theme.icons[s.state]}</span>"
             + (f"<span>{html.escape(project)}</span>" if project else "")
             + f'<span class="prompt">{html.escape(s.last_prompt)}</span></a>'
         )
@@ -67,7 +68,7 @@ def render(
         )
     else:
         body = "".join(row(s, show_project=True) for s in sessions)
-    body = body or f'<div class="quiet">{html.escape(state.QUIET)}</div>'
+    body = body or f'<div class="quiet">{html.escape(theme.quiet)}</div>'
     return f'<!doctype html><meta charset="utf-8"><style>{_CSS}</style>{body}'
 
 

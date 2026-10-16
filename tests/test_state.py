@@ -228,3 +228,13 @@ def test_grouped_status_collapses_sessions_of_one_project():
 def test_grouping_is_off_by_default():
     ss = [mk("a", WAITING, cwd="/p/h"), mk("b", WORKING, cwd="/p/h")]
     assert state.status_variants(ss, {}, None)[0] == "🐄 h  🐎 h"
+
+
+def test_classic_theme():
+    classic = state.THEMES["classic"]
+    ss = [mk("a", WAITING, cwd="/p/x"), mk("b", DONE, cwd="/p/y")]
+    assert state.summary(ss, classic) == "✋1 ✓1"
+    assert state.summary([], classic) == "·"
+    assert state.status_variants(ss, {}, None, theme=classic)[0] == "✋ x  ✓ y"
+    assert state.attention_text(mk(st=WAITING), classic) == "proj: needs you"
+    assert state.attention_text(mk(st=DONE), classic) == "proj: done"

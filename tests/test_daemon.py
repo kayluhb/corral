@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from corral import daemon, state, store
+from corral import daemon, settings, state, store
 from corral.state import DONE, IDLE, WAITING, WORKING, Session
 
 
@@ -116,8 +116,8 @@ def test_status_bar_lists_sessions_in_tab_order():
     put("A", WAITING)
     put("B", WORKING)
     tick(d)
-    assert d.status("C", {})[0] == "1🐎 B  3🐄 A"
-    assert d.status("A", {})[0] == "1🐎 B  [3🐄 A]"
+    assert d.status("C")[0] == "1🐎 B  3🐄 A"
+    assert d.status("A")[0] == "1🐎 B  [3🐄 A]"
 
 
 def test_tick_records_restore_history_without_forgetting_earlier_sessions():
@@ -134,12 +134,27 @@ def test_tick_records_restore_history_without_forgetting_earlier_sessions():
     assert history["c"]["cwd"] == "/p/A"
 
 
-def test_group_knob_turns_on_grouping_for_status_and_popover():
+def test_grouping_comes_from_corral_settings(monkeypatch):
     a, b = FakeSession("A"), FakeSession("B")
     d = daemon.Daemon(FakeApp([a, b], current="A"))
     store.write(Session("A", "c1", "/p/hydrogen", WORKING, 1.0))
     store.write(Session("B", "c2", "/p/hydrogen", WAITING, 1.0))
     tick(d)
-    assert d.status("A", {})[0] == "[1🐎 hydrogen]  2🐄 hydrogen"
-    assert d.status("A", {"group": True})[0] == "[1 hydrogen 🐎🐄]"
-    assert d.grouping("A") is True
+    assert d.status("A")[0] == "[1🐎 hydrogen]  2🐄 hydrogen"
+    settings.save(settings.Settings(group=True))
+    tick(d)
+    assert d.status("A")[0] == "[1 hydrogen 🐎🐄]"
+
+
+def test_tab_colours_off_clears_and_stops_painting():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="B"))
+    put("A", WAITING)
+    tick(d)
+    assert a.colors == [True]
+    settings.save(settings.Settings(tab_colours=False))
+    tick(d)
+    assert a.colors == [True, False]
+    put("A", DONE)
+    tick(d)
+    assert a.colors == [True, False]

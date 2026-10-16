@@ -14,9 +14,34 @@ IDLE = "idle"
 DELETE = "delete"
 
 PRIORITY = (WAITING, DONE, WORKING, IDLE)
-# Ranch theme: a stray needs roping, a rider is out working, back at camp is done.
-ICONS = {WAITING: "🐄", WORKING: "🐎", DONE: "🌵", IDLE: "💤"}
-QUIET = "🤠 quiet on the range"
+
+
+@dataclass(frozen=True)
+class Theme:
+    icons: dict[str, str]
+    quiet: str  # status bar text when nothing is going on
+    needs_you: str  # notification formats; {name} is the project
+    done: str
+
+
+THEMES = {
+    # A stray needs roping, a rider is out working, back at camp is done.
+    "ranch": Theme(
+        icons={WAITING: "🐄", WORKING: "🐎", DONE: "🌵", IDLE: "💤"},
+        quiet="🤠 quiet on the range",
+        needs_you="Whoa there, {name} needs you",
+        done="Yeehaw! {name}'s back at the corral",
+    ),
+    "classic": Theme(
+        icons={WAITING: "✋", WORKING: "⚙", DONE: "✓", IDLE: "·"},
+        quiet="·",
+        needs_you="{name}: needs you",
+        done="{name}: done",
+    ),
+}
+RANCH = THEMES["ranch"]
+ICONS = RANCH.icons  # default theme
+QUIET = RANCH.quiet
 SUMMARY_STATES = (WAITING, WORKING, DONE)
 WAITING_NOTIFICATIONS = frozenset(
     {"permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input"}
@@ -104,13 +129,9 @@ def project_name(cwd: str) -> str:
     return os.path.basename(cwd.rstrip("/")) or "?"
 
 
-def attention_text(session: Session) -> str:
-    name = project_name(session.cwd)
-    if session.state == WAITING:
-        text = f"Whoa there, {name} needs you"
-    else:
-        text = f"Yeehaw! {name}'s back at the corral"
-    return clean(text, PROMPT_LIMIT)
+def attention_text(session: Session, theme: Theme = RANCH) -> str:
+    template = theme.needs_you if session.state == WAITING else theme.done
+    return clean(template.format(name=project_name(session.cwd)), PROMPT_LIMIT)
 
 
 def ordered(sessions: Iterable[Session]) -> list[Session]:
@@ -126,14 +147,14 @@ def next_target(sessions: Iterable[Session], state: str, current_id: str | None)
     return ids[0]
 
 
-def summary(sessions: Iterable[Session]) -> str:
+def summary(sessions: Iterable[Session], theme: Theme = RANCH) -> str:
     sessions = list(sessions)
     parts = []
     for st in SUMMARY_STATES:
         count = sum(1 for s in sessions if s.state == st)
         if count:
-            parts.append(f"{ICONS[st]}{count}")
-    return " ".join(parts) or QUIET
+            parts.append(f"{theme.icons[st]}{count}")
+    return " ".join(parts) or theme.quiet
 
 
 def by_project(sessions: Iterable[Session]) -> list[tuple[str, list[Session]]]:
@@ -149,6 +170,7 @@ def status_variants(
     tabs: dict[str, int],
     current: str | None,
     group: bool = False,
+    theme: Theme = RANCH,
 ) -> list[str]:
     """Status bar texts, longest first; iTerm shows the longest that fits.
 
@@ -161,12 +183,12 @@ def status_variants(
         return f"[{text}]" if any(s.iterm_id == current for s in members) else text
 
     def entry(s: Session) -> str:
-        return mark(f"{tabs.get(s.iterm_id, '')}{ICONS[s.state]} {project_name(s.cwd)}", [s])
+        return mark(f"{tabs.get(s.iterm_id, '')}{theme.icons[s.state]} {project_name(s.cwd)}", [s])
 
     def group_entry(project: str, members: list[Session]) -> str:
         if len(members) == 1:
             return entry(members[0])
-        icons = "".join(ICONS[s.state] for s in members)
+        icons = "".join(theme.icons[s.state] for s in members)
         return mark(f"{tabs.get(members[0].iterm_id, '')} {project} {icons}".strip(), members)
 
     def listing(items: Iterable[Session]) -> str:
@@ -175,7 +197,7 @@ def status_variants(
         return "  ".join(entry(s) for s in items)
 
     variants = [listing(sessions), listing(s for s in sessions if s.state != IDLE)]
-    variants.append(summary(sessions))
+    variants.append(summary(sessions, theme))
     return [v for i, v in enumerate(variants) if v and v not in variants[:i]]
 
 

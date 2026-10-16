@@ -13,7 +13,7 @@ from pathlib import Path
 
 import iterm2
 
-from corral import launcher, popover, restore, state, store
+from corral import launcher, popover, restore, settings, state, store
 
 POLL_SECONDS = 0.5
 PICK_TIMEOUT = 600
@@ -35,7 +35,8 @@ class Daemon:
         self.summary = state.summary([])
         self.sessions: list[state.Session] = []
         self.tabs: dict[str, int] = {}
-        self.group_by: dict[str, bool] = {}  # session_id -> its status bar's group knob
+        self.settings = settings.load()
+        self.theme = state.THEMES[self.settings.theme]
         self.history = restore.load()  # keep what earlier runs saw, for `corral restore`
         self.history_saved = 0.0
         self.terminations: dict[str, asyncio.Future] = {}
@@ -65,6 +66,8 @@ class Daemon:
         return session.session_id if session else None
 
     async def _tick(self) -> None:
+        self.settings = settings.load()  # small file; re-read so `corral settings` applies live
+        self.theme = state.THEMES[self.settings.theme]
         self.active_id = self.current_session_id()
         sessions = self.live_sessions()
         now = time.time()
@@ -80,7 +83,7 @@ class Daemon:
             except Exception as exc:
                 print(f"corral: clear {iterm_id}: {exc!r}")
         self.known = {s.iterm_id: s.state for s in sessions}
-        self.summary = state.summary(sessions)
+        self.summary = state.summary(sessions, self.theme)
         self.tabs = self.tab_numbers()
         order = {iterm_id: i for i, iterm_id in enumerate(self.tabs)}
         self.sessions = sorted(sessions, key=lambda s: order.get(s.iterm_id, len(order)))
@@ -98,14 +101,9 @@ class Daemon:
             for session in tab.sessions
         }
 
-    def status(self, session_id: str | None, knobs: dict) -> list[str]:
-        group = bool(knobs.get(GROUP_KNOB))
-        if session_id:
-            self.group_by[session_id] = group  # the popover has no knobs; remember them
-        return state.status_variants(self.sessions, self.tabs, session_id, group)
-
-    def grouping(self, session_id: str) -> bool:
-        return self.group_by.get(session_id, False)
+    def status(self, session_id: str | None) -> list[str]:
+        group, theme = self.settings.group, self.theme
+        return state.status_variants(self.sessions, self.tabs, session_id, group, theme)
 
     async def _update(self, s: state.Session, now: float) -> state.Session:
         is_active = s.iterm_id == self.active_id
@@ -113,7 +111,8 @@ class Daemon:
             if store.read(s.iterm_id) == s:  # don't clobber a newer hook write
                 s = replace(s, state=state.IDLE, since=now)
                 store.write(s)
-        await self.paint(s.iterm_id, state.tab_color_key(s.state, is_active))
+        colour = state.tab_color_key(s.state, is_active) if self.settings.tab_colours else None
+        await self.paint(s.iterm_id, colour)
         prev = self.known.get(s.iterm_id)
         if prev is not None and prev != s.state and s.state in (state.WAITING, state.DONE):
             if not is_active:
@@ -136,7 +135,7 @@ class Daemon:
         self.painted[iterm_id] = key
 
     async def notify(self, s: state.Session) -> None:
-        text = state.attention_text(s)
+        text = state.attention_text(s, self.theme)
         if USE_OSC9:
             session = self.app.get_session_by_id(s.iterm_id)
             if session is not None:
@@ -213,14 +212,13 @@ def json_quote(text: str) -> str:
 
 COMPONENT_ID = "com.calebbrown.corral"
 STATUS_FUNCTION = "corral_status"
-GROUP_KNOB = "group"
 
 
 def status_component() -> iterm2.StatusBarComponent:
     return iterm2.StatusBarComponent(
         short_description="corral",
         detailed_description="Claude session status (waiting / working / done)",
-        knobs=[iterm2.CheckboxKnob("Group by project", False, GROUP_KNOB)],
+        knobs=[],
         exemplar="1🐄 hydrogen  [2🐎 corral]  3🌵 lasso",
         update_cadence=1.0,
         identifier=COMPONENT_ID,
@@ -235,7 +233,7 @@ async def main(connection: iterm2.Connection) -> None:
 
     @iterm2.StatusBarRPC  # name must match STATUS_FUNCTION
     async def corral_status(knobs, session_id=CURRENT_SESSION):
-        return daemon.status(session_id, knobs)
+        return daemon.status(session_id)
 
     @iterm2.RPC
     async def corral_next_waiting(session_id=CURRENT_SESSION):
@@ -252,9 +250,9 @@ async def main(connection: iterm2.Connection) -> None:
     links = await popover.serve(daemon.focus)
 
     async def on_click(session_id):
-        group = daemon.grouping(session_id)
+        group, theme = daemon.settings.group, daemon.theme
         sessions, tabs = daemon.sessions, daemon.tabs
-        html = popover.render(sessions, tabs, session_id, links.url, links.token, group)
+        html = popover.render(sessions, tabs, session_id, links.url, links.token, group, theme)
         size = iterm2.util.Size(popover.WIDTH, popover.height(popover.row_count(sessions, group)))
         await component.async_open_popover(session_id, html, size)
 
