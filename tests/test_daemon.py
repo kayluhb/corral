@@ -1,0 +1,234 @@
+import asyncio
+import time
+
+import pytest
+
+from corral import daemon, settings, state, store
+from corral.state import DONE, IDLE, WAITING, WORKING, Session
+
+
+class FakeSession:
+    def __init__(self, session_id, fail=False):
+        self.session_id = session_id
+        self.fail = fail
+        self.colors: list[bool] = []  # use_tab_color values applied, in order
+        self.injected: list[bytes] = []
+
+    async def async_set_profile_properties(self, profile):
+        if self.fail:
+            raise RuntimeError("boom")
+        self.colors.append(profile._LocalWriteOnlyProfile__values["Use Tab Color"] == "true")
+
+    async def async_inject(self, data):
+        self.injected.append(data)
+
+
+class FakeTab:
+    def __init__(self, sessions):
+        self.sessions = sessions
+        self.tab_id = sessions[0].session_id
+        self.titles: list[str] = []  # titles set, in order
+
+    async def async_set_title(self, title):
+        self.titles.append(title)
+
+
+class FakeApp:
+    def __init__(self, sessions, current, tabs=None):
+        """tabs: lists of sessions sharing a tab (splits); default one tab per session."""
+        self.sessions = {s.session_id: s for s in sessions}
+        self.current = current
+        self.tab_list = [FakeTab(group) for group in (tabs or [[s] for s in sessions])]
+
+    def get_session_by_id(self, session_id):
+        return self.sessions.get(session_id)
+
+    def tab(self, session_id):
+        return next(t for t in self.tab_list if any(s.session_id == session_id for s in t.sessions))
+
+    @property
+    def terminal_windows(self):
+        return [type("Window", (), {"tabs": self.tab_list})()]
+
+    @property
+    def current_window(self):
+        session = self.sessions[self.current]
+        tab = type("Tab", (), {"current_session": session})()
+        return type("Window", (), {"current_tab": tab})()
+
+
+@pytest.fixture(autouse=True)
+def tmp_state(tmp_path, monkeypatch):
+    monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
+
+
+@pytest.fixture(autouse=True)
+def use_osc9(monkeypatch):
+    monkeypatch.setattr(daemon, "USE_OSC9", True)
+
+
+def put(iterm_id, st):
+    store.write(Session(iterm_id, "c", f"/p/{iterm_id}", st, 1.0))
+
+
+def tick(d):
+    asyncio.run(d.tick())
+
+
+def test_done_in_focused_tab_becomes_idle():
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", DONE)
+    tick(d)
+    assert store.read("A").state == IDLE
+
+
+def test_done_stays_done_and_notifies_while_iterm_in_background():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="A"))
+    put("A", WORKING)
+    tick(d)
+    d.app_active = False
+    put("A", DONE)
+    tick(d)
+    assert store.read("A").state == DONE
+    assert a.injected and b"is done" in a.injected[0]
+    assert a.colors[-1] is True
+
+
+def test_one_failing_session_does_not_freeze_the_rest():
+    bad, good = FakeSession("BAD", fail=True), FakeSession("GOOD")
+    d = daemon.Daemon(FakeApp([bad, good], current="GOOD"))
+    put("BAD", WAITING)
+    put("GOOD", WORKING)
+    tick(d)
+    assert d.summary == state.summary([store.read("BAD"), store.read("GOOD")])
+
+
+def test_colour_cleared_when_claude_exits_but_tab_stays():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="B"))
+    put("A", WAITING)
+    tick(d)
+    assert a.colors == [True]
+    store.delete("A")
+    tick(d)
+    assert a.colors == [True, False]
+
+
+def test_never_clears_colour_corral_did_not_apply():
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", WORKING)
+    tick(d)
+    assert a.colors == []
+
+
+def test_status_bar_lists_sessions_in_tab_order():
+    a, b, c = FakeSession("A"), FakeSession("B"), FakeSession("C")
+    d = daemon.Daemon(FakeApp([b, c, a], current="C"))
+    put("A", WAITING)
+    put("B", WORKING)
+    tick(d)
+    assert d.status("C")[0] == "1◐ B  3✋ A"
+    assert d.status("A")[0] == "1◐ B  [3✋ A]"
+
+
+def test_tick_records_restore_history_without_forgetting_earlier_sessions():
+    from corral import restore
+
+    earlier = {"cwd": "/p/x", "last_prompt": "", "order": 0, "last_seen": time.time() - 60}
+    restore.save({"from-last-time": earlier})
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", WORKING)
+    tick(d)
+    history = restore.load()
+    assert set(history) == {"from-last-time", "c"}
+    assert history["c"]["cwd"] == "/p/A"
+
+
+def test_grouping_comes_from_corral_settings(monkeypatch):
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="A"))
+    store.write(Session("A", "c1", "/p/hydrogen", WORKING, 1.0))
+    store.write(Session("B", "c2", "/p/hydrogen", WAITING, 1.0))
+    tick(d)
+    assert d.status("A")[0] == "[1◐ hydrogen]  2✋ hydrogen"
+    settings.save(settings.Settings(group=True))
+    tick(d)
+    assert d.status("A")[0] == "[1 hydrogen ◐✋]"
+
+
+def test_tab_colours_off_clears_and_stops_painting():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="B"))
+    put("A", WAITING)
+    tick(d)
+    assert a.colors == [True]
+    settings.save(settings.Settings(tab_colours=False))
+    tick(d)
+    assert a.colors == [True, False]
+    put("A", DONE)
+    tick(d)
+    assert a.colors == [True, False]
+
+
+def test_waiting_tab_is_red_and_done_tab_green():
+    assert daemon.COLORS[WAITING].red > 200 and daemon.COLORS[WAITING].green < 100
+    assert daemon.COLORS[DONE].green > daemon.COLORS[DONE].red
+
+
+TITLE = "\\(currentSession.presentationName)"
+
+
+def test_tab_title_shows_waiting_and_done_only():
+    a, b, c, other = FakeSession("A"), FakeSession("B"), FakeSession("C"), FakeSession("O")
+    app = FakeApp([a, b, c, other], current="O")
+    d = daemon.Daemon(app)
+    put("A", WAITING)
+    put("B", WORKING)
+    put("C", DONE)
+    tick(d)
+    assert app.tab("A").titles == [f"✋ {TITLE}"]
+    assert app.tab("C").titles == [f"🟢 {TITLE}"]
+    assert app.tab("B").titles == [""]  # Claude Code's own title already shows working
+    assert app.tab("O").titles == []  # not a claude tab: never touched
+    tick(d)
+    assert app.tab("A").titles == [f"✋ {TITLE}"]  # unchanged: not set again
+
+
+def test_split_tab_shows_most_urgent_icon():
+    a, b = FakeSession("A"), FakeSession("B")
+    app = FakeApp([a, b], current="A", tabs=[[a, b]])
+    d = daemon.Daemon(app)
+    put("A", WORKING)
+    put("B", WAITING)
+    tick(d)
+    assert app.tab("A").titles == [f"✋ {TITLE}"]
+
+
+def test_tab_title_resets_when_claude_exits():
+    a = FakeSession("A")
+    app = FakeApp([a], current="A")
+    d = daemon.Daemon(app)
+    put("A", WAITING)
+    tick(d)
+    put("A", WORKING)  # permission granted: back to Claude Code's own title
+    tick(d)
+    put("A", WAITING)
+    tick(d)
+    store.delete("A")
+    tick(d)
+    assert app.tab("A").titles == [f"✋ {TITLE}", "", f"✋ {TITLE}", ""]
+
+
+def test_fresh_daemon_clears_titles_an_earlier_run_left_on_claude_tabs():
+    a, other = FakeSession("A"), FakeSession("O")
+    app = FakeApp([a, other], current="O")
+    d = daemon.Daemon(app)
+    put("A", WORKING)
+    tick(d)
+    tick(d)
+    assert app.tab("A").titles == [""]  # reset once, not every tick
+    assert app.tab("O").titles == []
