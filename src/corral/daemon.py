@@ -33,6 +33,7 @@ class Daemon:
         self.app = app
         self.active_id: str | None = None
         self.known: dict[str, str] = {}  # iterm_id -> last seen state
+        self.iterm_status: dict[str, str] = {}  # iterm_id -> last status iTerm reported
         self.painted: dict[str, str | None] = {}  # iterm_id -> colour key applied
         self.titled: dict[str, str] = {}  # tab_id -> title applied ("" = iTerm's default)
         self.summary = state.summary([])
@@ -95,16 +96,17 @@ class Daemon:
             self.history_saved = now
 
     async def retitle(self, sessions: list[state.Session]) -> None:
-        """Put ✋ or 🟢 at the front of a claude tab's title when it needs you or is done.
+        """Put ✋ at the front of a claude tab's title when it needs you.
 
         Working and idle are left out: Claude Code's own title already marks them (◑ / ✳).
+        Done is left out too: iTerm's tab status dot already marks it.
         """
         states = {s.iterm_id: s.state for s in sessions}
         for window in self.app.terminal_windows:
             for tab in window.tabs:
                 found = [states[x.session_id] for x in tab.sessions if x.session_id in states]
                 urgent = state.most_urgent(found) if found else None
-                icon = state.ICONS[urgent] if urgent in (state.WAITING, state.DONE) else None
+                icon = state.ICONS[urgent] if urgent == state.WAITING else None
                 title = TAB_TITLE.format(icon=icon) if icon else ""
                 # Non-claude tabs are never touched. A claude tab this run hasn't titled yet gets
                 # set once even to "", clearing an icon an earlier daemon may have left behind.
@@ -143,6 +145,7 @@ class Daemon:
 
     async def _update(self, s: state.Session, now: float) -> state.Session:
         is_active = s.iterm_id == self.active_id
+        s = await self.follow_iterm(s, now)
         if s.state == state.DONE and is_active:
             if store.read(s.iterm_id) == s:  # don't clobber a newer hook write
                 s = replace(s, state=state.IDLE, since=now)
@@ -153,6 +156,27 @@ class Daemon:
         if prev is not None and prev != s.state and s.state in (state.WAITING, state.DONE):
             if not is_active:
                 await self.notify(s)
+        return s
+
+    async def follow_iterm(self, s: state.Session, now: float) -> state.Session:
+        """Take the state from iTerm 3.7's Claude Code integration when it reports one.
+
+        It sees waiting and background work sooner than corral's hook. Without it, corral's
+        own hook-recorded state is used as before.
+        """
+        session = self.app.get_session_by_id(s.iterm_id)
+        status = await session.async_get_variable("status") if session else None
+        if status not in state.PRIORITY:
+            self.iterm_status.pop(s.iterm_id, None)
+            return s
+        changed = self.iterm_status.get(s.iterm_id) != status
+        self.iterm_status[s.iterm_id] = status
+        # iTerm stays done until the next prompt; keep the idle corral set once you looked.
+        seen = status == state.DONE and s.state == state.IDLE
+        if s.state == status or (seen and not changed):
+            return s
+        s = replace(s, state=status, since=now)
+        store.write(s)
         return s
 
     async def paint(self, iterm_id: str, key: str | None) -> None:
@@ -245,6 +269,7 @@ class Daemon:
                     if store.valid_id(session_id):
                         store.delete(session_id)
                     self.known.pop(session_id, None)
+                    self.iterm_status.pop(session_id, None)
                     self.painted.pop(session_id, None)
                     future = self.terminations.get(session_id)
                     if future is not None and not future.done():
@@ -313,7 +338,9 @@ async def main(connection: iterm2.Connection) -> None:
         asyncio.create_task(daemon.watch_focus(connection)),
         asyncio.create_task(daemon.watch_terminations(connection)),
     ]
-    while True:
+    # Return once iTerm drops the connection: run_forever only notices after main
+    # returns, and a daemon left running would hold the lock and block the restart.
+    while not connection.websocket.closed:
         try:
             await daemon.tick()
         except Exception as exc:  # keep the daemon alive; surface in Script Console

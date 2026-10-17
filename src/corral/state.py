@@ -50,6 +50,8 @@ def target_state(event: dict) -> str | None:
         return IDLE
     if name in ("UserPromptSubmit", "PostToolUse"):
         return WORKING
+    if name == "PermissionRequest":
+        return WAITING
     if name == "Notification":
         kind = event.get("notification_type")
         if kind == "idle_prompt":

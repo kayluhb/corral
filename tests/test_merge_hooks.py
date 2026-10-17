@@ -9,6 +9,7 @@ EVENTS = [
     "UserPromptSubmit",
     "PostToolUse",
     "Notification",
+    "PermissionRequest",
     "Stop",
     "SessionEnd",
 ]

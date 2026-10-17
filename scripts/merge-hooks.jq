@@ -22,6 +22,7 @@ def retire($event):
 | add("UserPromptSubmit"; null)
 | add("PostToolUse"; null)
 | add("Notification"; "permission_prompt|elicitation_dialog|elicitation_url_dialog|agent_needs_input|idle_prompt")
+| add("PermissionRequest"; null)
 | add("Stop"; null)
 | add("SessionEnd"; null)
 | retire("PreToolUse")

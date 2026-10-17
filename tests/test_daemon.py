@@ -13,6 +13,11 @@ class FakeSession:
         self.fail = fail
         self.colors: list[bool] = []  # use_tab_color values applied, in order
         self.injected: list[bytes] = []
+        self.status = None  # iTerm's Claude Code integration status; None when it reports none
+
+    async def async_get_variable(self, name):
+        assert name == "status"
+        return self.status
 
     async def async_set_profile_properties(self, profile):
         if self.fail:
@@ -243,7 +248,7 @@ def test_waiting_tab_is_red_and_done_tab_green():
 TITLE = "\\(currentSession.presentationName)"
 
 
-def test_tab_title_shows_waiting_and_done_only():
+def test_tab_title_shows_waiting_only():
     a, b, c, other = FakeSession("A"), FakeSession("B"), FakeSession("C"), FakeSession("O")
     app = FakeApp([a, b, c, other], current="O")
     d = daemon.Daemon(app)
@@ -252,7 +257,7 @@ def test_tab_title_shows_waiting_and_done_only():
     put("C", DONE)
     tick(d)
     assert app.tab("A").titles == [f"✋ {TITLE}"]
-    assert app.tab("C").titles == [f"🟢 {TITLE}"]
+    assert app.tab("C").titles == [""]  # iTerm's tab status dot already shows done
     assert app.tab("B").titles == [""]  # Claude Code's own title already shows working
     assert app.tab("O").titles == []  # not a claude tab: never touched
     tick(d)
@@ -293,3 +298,67 @@ def test_fresh_daemon_clears_titles_an_earlier_run_left_on_claude_tabs():
     tick(d)
     assert app.tab("A").titles == [""]  # reset once, not every tick
     assert app.tab("O").titles == []
+
+
+def test_follows_iterm_status_when_it_reports_one():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="B"))
+    put("A", WORKING)
+    tick(d)
+    a.status = WAITING
+    tick(d)
+    assert store.read("A").state == WAITING
+    assert a.injected and b"needs you" in a.injected[0]
+
+
+def test_keeps_its_own_state_without_iterm_status():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="B"))
+    put("A", WAITING)
+    tick(d)
+    assert store.read("A").state == WAITING
+
+
+def test_late_hook_write_does_not_override_iterm_status():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="B"))
+    put("A", WAITING)
+    a.status = WORKING  # permission granted
+    tick(d)
+    put("A", WAITING)  # corral's delayed permission_prompt Notification lands
+    tick(d)
+    assert store.read("A").state == WORKING
+
+
+def test_iterm_done_becomes_idle_once_seen_and_stays_idle():
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", WORKING)
+    a.status = DONE  # iTerm keeps reporting done until the next prompt
+    tick(d)
+    tick(d)
+    assert store.read("A").state == IDLE
+
+
+def test_iterm_done_again_after_new_turn_is_done():
+    a, b = FakeSession("A"), FakeSession("B")
+    app = FakeApp([a, b], current="A")
+    d = daemon.Daemon(app)
+    put("A", WORKING)
+    a.status = DONE
+    tick(d)  # seen: idle
+    a.status = WORKING
+    tick(d)
+    app.current = "B"
+    a.status = DONE
+    tick(d)
+    assert store.read("A").state == DONE
+
+
+def test_iterm_status_change_restarts_since():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="B"))
+    put("A", WORKING)  # since 1.0
+    a.status = WAITING
+    tick(d)
+    assert store.read("A").since > 1.0
