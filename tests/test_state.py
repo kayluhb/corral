@@ -17,6 +17,11 @@ def test_target_state_lifecycle():
     assert state.target_state({"hook_event_name": "SessionEnd"}) == state.DELETE
 
 
+def test_target_state_permission_request_is_waiting():
+    # Fires as the prompt appears; the permission_prompt Notification comes much later.
+    assert state.target_state({"hook_event_name": "PermissionRequest"}) == WAITING
+
+
 def test_target_state_notifications():
     for t in (
         "permission_prompt",

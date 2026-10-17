@@ -67,6 +67,10 @@ one at a time, aren't included, and neither is anything still running.
 | done | 🟢 | green | Claude finished. Becomes idle once you focus the tab |
 | idle | · | none | Session open, nothing pending |
 
+With iTerm2 3.7's Claude Code integration installed (iTerm2 → Install Claude Code Integration),
+corral takes each session's state from iTerm, which notices background work sooner. Done still
+becomes idle once you focus the tab. Sessions iTerm reports nothing for use corral's own hooks.
+
 The status bar lists the claude tabs in its own window, in tab order: its tab number (the ⌘N), state and
 project, with the tab you're in bracketed, for example `1✋ hydrogen  [2◐ corral]  3🟢 lasso`.
 When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 ◐1 🟢1`). With nothing
