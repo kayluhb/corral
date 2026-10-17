@@ -313,7 +313,9 @@ async def main(connection: iterm2.Connection) -> None:
         asyncio.create_task(daemon.watch_focus(connection)),
         asyncio.create_task(daemon.watch_terminations(connection)),
     ]
-    while True:
+    # Return once iTerm drops the connection: run_forever only notices after main
+    # returns, and a daemon left running would hold the lock and block the restart.
+    while not connection.websocket.closed:
         try:
             await daemon.tick()
         except Exception as exc:  # keep the daemon alive; surface in Script Console
