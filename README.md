@@ -74,9 +74,9 @@ going on in the window it reads `all quiet`. Tab colours, titles and notificatio
 still cover every window. A colour is never shown on the tab you're
 currently in. You get a notification only for sessions you're not looking at.
 
-A claude tab's title also starts with ✋ when it needs you or 🟢 when it's done (a split tab
-shows ✋ if any of its sessions is waiting). Working and idle tabs keep their normal title, since
-Claude Code already marks those itself. The title goes back to normal once the tab moves on.
+A claude tab's title also starts with ✋ when it needs you (a split tab shows ✋ if any of its
+sessions is waiting). Other tabs keep their normal title: Claude Code already marks working and
+idle, and iTerm's tab status dot marks done. The title goes back to normal once the tab moves on.
 
 ## Development
 

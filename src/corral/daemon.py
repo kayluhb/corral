@@ -95,16 +95,17 @@ class Daemon:
             self.history_saved = now
 
     async def retitle(self, sessions: list[state.Session]) -> None:
-        """Put ✋ or 🟢 at the front of a claude tab's title when it needs you or is done.
+        """Put ✋ at the front of a claude tab's title when it needs you.
 
         Working and idle are left out: Claude Code's own title already marks them (◑ / ✳).
+        Done is left out too: iTerm's tab status dot already marks it.
         """
         states = {s.iterm_id: s.state for s in sessions}
         for window in self.app.terminal_windows:
             for tab in window.tabs:
                 found = [states[x.session_id] for x in tab.sessions if x.session_id in states]
                 urgent = state.most_urgent(found) if found else None
-                icon = state.ICONS[urgent] if urgent in (state.WAITING, state.DONE) else None
+                icon = state.ICONS[urgent] if urgent == state.WAITING else None
                 title = TAB_TITLE.format(icon=icon) if icon else ""
                 # Non-claude tabs are never touched. A claude tab this run hasn't titled yet gets
                 # set once even to "", clearing an icon an earlier daemon may have left behind.

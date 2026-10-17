@@ -243,7 +243,7 @@ def test_waiting_tab_is_red_and_done_tab_green():
 TITLE = "\\(currentSession.presentationName)"
 
 
-def test_tab_title_shows_waiting_and_done_only():
+def test_tab_title_shows_waiting_only():
     a, b, c, other = FakeSession("A"), FakeSession("B"), FakeSession("C"), FakeSession("O")
     app = FakeApp([a, b, c, other], current="O")
     d = daemon.Daemon(app)
@@ -252,7 +252,7 @@ def test_tab_title_shows_waiting_and_done_only():
     put("C", DONE)
     tick(d)
     assert app.tab("A").titles == [f"✋ {TITLE}"]
-    assert app.tab("C").titles == [f"🟢 {TITLE}"]
+    assert app.tab("C").titles == [""]  # iTerm's tab status dot already shows done
     assert app.tab("B").titles == [""]  # Claude Code's own title already shows working
     assert app.tab("O").titles == []  # not a claude tab: never touched
     tick(d)
