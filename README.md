@@ -44,7 +44,7 @@ Changes apply straight away. They're stored in `~/.config/corral/settings.json`,
 
 | Setting | Values | Default |
 |---|---|---|
-| Group by project | on / off: sessions of one project collapse into one entry, like `1 hydrogen ✋◐·`, and the popover lists them under project headings | off |
+| Group by project | on / off: sessions of one project collapse into one entry, like `1 hydrogen ✋🟠⚪`, and the popover lists them under project headings | off |
 | Tab colours | on / off | on |
 
 ## Restore
@@ -63,17 +63,21 @@ one at a time, aren't included, and neither is anything still running.
 | State | Icon | Tab colour | Meaning |
 |---|---|---|---|
 | waiting | ✋ | red | Permission prompt, question or agent input needed |
-| working | ◐ | none | Prompt submitted or tool running |
+| working | 🟠 | none | Prompt submitted or tool running |
 | done | 🟢 | green | Claude finished. Becomes idle once you focus the tab |
-| idle | · | none | Session open, nothing pending |
+| idle | ⚪ | none | Session open, nothing pending |
+
+With iTerm2 3.7's Claude Code integration installed (iTerm2 → Install Claude Code Integration),
+corral takes each session's state from iTerm, which notices background work sooner. Done still
+becomes idle once you focus the tab. Sessions iTerm reports nothing for use corral's own hooks.
 
 With iTerm2 3.7's Claude Code integration installed (iTerm2 → Install Claude Code Integration),
 corral takes each session's state from iTerm, which notices background work sooner. Done still
 becomes idle once you focus the tab. Sessions iTerm reports nothing for use corral's own hooks.
 
 The status bar lists the claude tabs in its own window, in tab order: its tab number (the ⌘N), state and
-project, with the tab you're in bracketed, for example `1✋ hydrogen  [2◐ corral]  3🟢 lasso`.
-When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 ◐1 🟢1`). With nothing
+project, with the tab you're in bracketed, for example `1✋ hydrogen  [2🟠 corral]  3🟢 lasso`.
+When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 🟠1 🟢1`). With nothing
 going on in the window it reads `all quiet`. Tab colours, titles and notifications
 still cover every window. A colour is never shown on the tab you're
 currently in. You get a notification only for sessions you're not looking at.

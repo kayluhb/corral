@@ -19,6 +19,12 @@ def test_render_lists_sessions_with_links_in_order():
     assert 'class="row current"' in html
 
 
+def test_render_draws_dots_in_iterm_colours_but_keeps_the_hand():
+    html = popover.render([mk("A-1", DONE, "/p/a"), mk("B-2", WAITING, "/p/b")], {}, None, URL, "t")
+    assert 'class="dot done"' in html and "🟢" not in html
+    assert "✋" in html
+
+
 def test_render_escapes_project_and_prompt():
     html = popover.render([mk("A-1", WAITING, "/p/<b>", "<script>x</script>")], {}, None, URL, "t")
     assert "<script>x" not in html and "&lt;script&gt;" in html and "&lt;b&gt;" in html
