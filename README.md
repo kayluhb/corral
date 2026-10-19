@@ -6,11 +6,23 @@ talking to iTerm2's Python API, uses that state to show a status bar summary, co
 hotkeys jump to the sessions that need you. Each window shows and jumps between only its own
 claude tabs. Nothing replaces your tabs or needs clicking.
 
+## Requirements
+
+- macOS with iTerm2. iTerm2 3.7 or later is optional; see [States](#states).
+- [uv](https://docs.astral.sh/uv/) and `jq`. The install script installs `fzf` with Homebrew if
+  it's missing.
+- Claude Code.
+
 ## Install
 
 ```sh
+git clone --branch v1.0.0 https://github.com/kayluhb/corral.git
+cd corral
 ./install.sh
 ```
+
+The script installs corral from this folder in editable mode, so keep the folder. To upgrade,
+`git fetch --tags && git checkout <new tag>` and run `./install.sh` again.
 
 If iTerm2's Python API is off, the script turns it on (Settings → General → Magic →
 **Enable Python API**) and asks you to restart iTerm2 and run it again.
@@ -67,10 +79,6 @@ one at a time, aren't included, and neither is anything still running.
 | working | 🟠 | none | Prompt submitted or tool running |
 | done | 🟢 | green | Claude finished. Becomes idle once you focus the tab |
 | idle | ⚪ | none | Session open, nothing pending |
-
-With iTerm2 3.7's Claude Code integration installed (iTerm2 → Install Claude Code Integration),
-corral takes each session's state from iTerm, which notices background work sooner. Done still
-becomes idle once you focus the tab. Sessions iTerm reports nothing for use corral's own hooks.
 
 With iTerm2 3.7's Claude Code integration installed (iTerm2 → Install Claude Code Integration),
 corral takes each session's state from iTerm, which notices background work sooner. Done still

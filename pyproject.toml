@@ -1,6 +1,6 @@
 [project]
 name = "corral"
-version = "0.1.0"
+version = "1.0.0"
 description = "Keyboard-first status and navigation for Claude Code sessions in iTerm2"
 requires-python = ">=3.10"
 dependencies = []
