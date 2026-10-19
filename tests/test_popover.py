@@ -73,3 +73,21 @@ def test_render_grouped_puts_rows_under_project_headers():
     html = popover.render(ss, {}, None, URL, "tok", group=True)
     assert html.count('class="group"') == 2
     assert html.index("hydrogen") < html.index("fix") < html.index("tests") < html.index("lasso")
+
+
+def test_server_closes_idle_connections_quietly(monkeypatch, capsys):
+    monkeypatch.setattr(popover, "READ_TIMEOUT", 0.05)
+
+    async def scenario():
+        async def on_focus(iterm_id):
+            raise AssertionError("no request was sent")
+
+        server = await popover.serve(on_focus)
+        # WebKit opens spare connections ahead of time and may never send on them.
+        reader, writer = await asyncio.open_connection("127.0.0.1", server.port)
+        assert await reader.read() == b""  # the server hung up
+        writer.close()
+        server.close()
+
+    asyncio.run(scenario())
+    assert capsys.readouterr().out == ""

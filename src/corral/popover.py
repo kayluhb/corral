@@ -112,18 +112,23 @@ class Server:
         self.server.close()
 
 
+READ_TIMEOUT = 2.0  # seconds to wait for the request line
+
+
 async def serve(on_focus: Callable[[str], Awaitable[None]]) -> Server:
     token = secrets.token_urlsafe(16)
 
     async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
-            line = (await asyncio.wait_for(reader.readline(), 2)).decode("latin-1")
+            line = (await asyncio.wait_for(reader.readline(), READ_TIMEOUT)).decode("latin-1")
             iterm_id = parse_request(line, token)
             status = "204 No Content" if iterm_id else "404 Not Found"
             writer.write(f"HTTP/1.1 {status}\r\nConnection: close\r\n\r\n".encode())
             await writer.drain()
             if iterm_id:
                 await on_focus(iterm_id)
+        except asyncio.TimeoutError:
+            pass  # WebKit opens spare connections ahead of time and may never use them
         except Exception as exc:  # never let one bad request hurt the daemon
             print(f"corral popover: {exc!r}")
         finally:
