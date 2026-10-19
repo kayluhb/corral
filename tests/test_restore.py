@@ -1,3 +1,5 @@
+import shlex
+
 from corral import restore
 from corral.state import IDLE, WORKING, Session
 
@@ -48,6 +50,15 @@ def test_last_batch_empty_when_nothing_to_restore():
 def test_resume_command_quotes_paths():
     cmd = restore.resume_command("abc-123", "/p/my project")
     assert cmd == "cd '/p/my project' && claude --resume abc-123"
+
+
+def test_tab_command_runs_resume_in_a_login_shell_then_stays_open():
+    cmd = restore.tab_command("abc-123", "/p/my project", "/bin/zsh")
+    assert shlex.split(cmd) == [
+        "/bin/zsh",
+        "-lic",
+        "cd '/p/my project' && claude --resume abc-123; exec /bin/zsh -l",
+    ]
 
 
 def test_history_roundtrip(tmp_path, monkeypatch):
