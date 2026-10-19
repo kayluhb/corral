@@ -1,5 +1,16 @@
 # corral
 
+[![CI](https://github.com/kayluhb/corral/actions/workflows/ci.yml/badge.svg)](https://github.com/kayluhb/corral/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/kayluhb/corral)](https://github.com/kayluhb/corral/releases)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776ab)
+![macOS + iTerm2](https://img.shields.io/badge/macOS-iTerm2-000000?logo=iterm2&logoColor=white)
+[![Built for Claude Code](https://img.shields.io/badge/built%20for-Claude%20Code-d97757)](https://claude.com/claude-code)
+
+Round up your Claude Code sessions. 🤠
+
+![corral demo: ⌘J jumps to the session waiting on you, ⌘⇧J to finished work, ⌘P fuzzy-picks any session](docs/demo.gif)
+
 Keyboard-first status for many `claude` sessions running in ordinary iTerm2 tabs.
 Claude Code hooks record each session's state. A small daemon, started by the hook and
 talking to iTerm2's Python API, uses that state to show a status bar summary, colour the tabs that need you and send notifications. Three
@@ -47,7 +58,11 @@ prompt. It exits when iTerm quits and starts again with the next claude event.
 | ⌘⇧J | `corral_next_done` | Same, for finished sessions you haven't looked at yet. |
 | ⌘P | `corral_pick` | Open an fzf switcher over this window's sessions in a temporary split. Enter jumps to the session; Esc or ⌘P again cancels. |
 
+<img src="docs/picker.png" alt="The ⌘P picker in a split under the current session, listing this window's sessions by urgency" width="720">
+
 Click the corral status bar item to open a list of this window's claude tabs; click one to jump to it.
+
+<img src="docs/popover.png" alt="The status bar popover listing tabs 1 to 5 with their state" width="480">
 
 ## Settings
 
@@ -83,6 +98,8 @@ one at a time, aren't included, and neither is anything still running.
 With iTerm2 3.7's Claude Code integration installed (iTerm2 → Install Claude Code Integration),
 corral takes each session's state from iTerm, which notices background work sooner. Done still
 becomes idle once you focus the tab. Sessions iTerm reports nothing for use corral's own hooks.
+
+![A window with five claude tabs: corral's status bar, red and green tab colours and iTerm's status dots](docs/overview.png)
 
 The status bar lists the claude tabs in its own window, in tab order: its tab number (the ⌘N), state and
 project, with the tab you're in bracketed, for example `1✋ hydrogen  [2🟠 corral]  3🟢 lasso`.
