@@ -51,6 +51,15 @@ def resume_command(claude_id: str, cwd: str) -> str:
     return f"cd {shlex.quote(cwd)} && claude --resume {shlex.quote(claude_id)}"
 
 
+def tab_command(claude_id: str, cwd: str, shell: str) -> str:
+    """The tab's own command: resume claude in an interactive login shell, then stay a shell.
+
+    Typing the command into a fresh tab races shell startup, which can discard typeahead.
+    """
+    inner = f"{resume_command(claude_id, cwd)}; exec {shlex.quote(shell)} -l"
+    return f"{shlex.quote(shell)} -lic {shlex.quote(inner)}"
+
+
 def load() -> dict:
     try:
         data = json.loads(history_path().read_text())
@@ -87,10 +96,14 @@ def run() -> int:
 
     async def open_tabs(connection: iterm2.Connection) -> None:
         await iterm2.async_get_app(connection)  # wires up Window.async_create_tab
-        window = await iterm2.Window.async_create(connection)
-        for i, (claude_id, v) in enumerate(batch):
-            tab = window.tabs[0] if i == 0 else await window.async_create_tab()
-            await tab.sessions[0].async_send_text(resume_command(claude_id, v["cwd"]) + "\n")
+        shell = os.environ.get("SHELL", "/bin/zsh")
+        window = None
+        for claude_id, v in batch:
+            command = tab_command(claude_id, v["cwd"], shell)
+            if window is None:
+                window = await iterm2.Window.async_create(connection, command=command)
+            else:
+                await window.async_create_tab(command=command)
 
     iterm2.run_until_complete(open_tabs)
     print(f"Reopened {len(batch)}.")
