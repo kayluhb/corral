@@ -26,9 +26,10 @@ mv "$tmp" "$SETTINGS"
 
 echo "==> iTerm2: status bar item and hotkeys"
 if [ "$(defaults read com.googlecode.iterm2 EnableAPIServer 2>/dev/null)" != "1" ]; then
+  # Same pref as Settings → General → Magic → "Enable Python API"; iTerm reads it at launch.
+  defaults write com.googlecode.iterm2 EnableAPIServer -bool true
   cat <<'STEP'
-  The iTerm2 Python API is off. Tick Settings → General → Magic → "Enable Python API",
-  then re-run ./install.sh.
+  Enabled the iTerm2 Python API. Quit iTerm2 (⌘Q), reopen it, then re-run ./install.sh.
 STEP
   exit 1
 fi

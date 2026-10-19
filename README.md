@@ -12,7 +12,8 @@ claude tabs. Nothing replaces your tabs or needs clicking.
 ./install.sh
 ```
 
-Before the first run, tick iTerm2 Settings → General → Magic → **Enable Python API**.
+If iTerm2's Python API is off, the script turns it on (Settings → General → Magic →
+**Enable Python API**) and asks you to restart iTerm2 and run it again.
 
 The script:
 
