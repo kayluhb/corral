@@ -13,10 +13,11 @@ from pathlib import Path
 
 import iterm2
 
-from corral import launcher, popover, restore, settings, state, store
+from corral import control, launcher, popover, restore, settings, state, store
 
 POLL_SECONDS = 0.5
 PICK_TIMEOUT = 600
+SUBMIT_DELAY = 0.1  # seconds between a sent prompt's paste and its Enter, so claude takes both
 CORRAL_BIN = os.environ.get("CORRAL_BIN", os.path.expanduser("~/.local/bin/corral"))
 COLORS = {
     state.WAITING: iterm2.Color(230, 60, 60),
@@ -250,6 +251,51 @@ class Daemon:
         if chosen:
             await self.focus(chosen)
 
+    async def control(self, message: dict) -> dict:
+        """Requests from `corral send`, `doctor` and `explain`, over the control socket."""
+        op = message.get("op")
+        iterm_id = str(message.get("iterm_id", ""))
+        if op == "ping":
+            return {"ok": True}
+        if op == "explain":
+            return self.explain(iterm_id)
+        if op == "send":
+            return await self.send(iterm_id, str(message.get("text", "")))
+        return {"error": f"unknown request {op!r}"}
+
+    def explain(self, iterm_id: str) -> dict:
+        """What the daemon knows about a session, as of its last tick."""
+        return {
+            "ok": True,
+            "tab_open": self.app.get_session_by_id(iterm_id) is not None,
+            "iterm_status": self.iterm_status.get(iterm_id),
+            "focused": iterm_id == self.active_id,
+            "tab_colour": self.painted.get(iterm_id),
+        }
+
+    async def send(self, iterm_id: str, text: str) -> dict:
+        s = store.read(iterm_id) if store.valid_id(iterm_id) else None
+        session = self.app.get_session_by_id(iterm_id) if s else None
+        if s is None or session is None:
+            return {"error": f"no claude session {iterm_id!r}"}
+        name = state.project_name(s.cwd)
+        # Typing into a permission prompt could answer it, so check iTerm as well as the
+        # state file (it may know first), and again just before pressing Enter.
+        if await self.is_waiting(iterm_id, session):
+            return {"error": f"{name} is waiting on you; answer it first"}
+        await session.async_send_text(control.paste(text))
+        await asyncio.sleep(SUBMIT_DELAY)
+        if await self.is_waiting(iterm_id, session):
+            return {"error": f"{name} started waiting on you; the prompt is pasted, not submitted"}
+        await session.async_send_text("\r")
+        return {"ok": True}
+
+    async def is_waiting(self, iterm_id: str, session: iterm2.Session) -> bool:
+        s = store.read(iterm_id)
+        if s is not None and s.state == state.WAITING:
+            return True
+        return await session.async_get_variable("status") == state.WAITING
+
     async def watch_focus(self, connection: iterm2.Connection) -> None:
         async with iterm2.FocusMonitor(connection) as monitor:
             while True:
@@ -320,6 +366,10 @@ async def main(connection: iterm2.Connection) -> None:
         await daemon.pick(session_id)
 
     links = await popover.serve(daemon.focus)
+    try:
+        control_server = await control.serve(daemon.control)  # noqa: F841 - kept alive with main
+    except OSError as exc:  # e.g. a CORRAL_STATE_DIR too long for a socket path
+        print(f"corral: no control socket, `corral send` won't work: {exc!r}")
 
     async def on_click(session_id):
         group = daemon.settings.group
