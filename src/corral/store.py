@@ -35,6 +35,8 @@ _STR_FIELDS = ("iterm_id", "claude_session_id", "cwd", "state", "last_prompt")
 def _well_typed(session: Session) -> bool:
     if not all(isinstance(getattr(session, f), str) for f in _STR_FIELDS):
         return False
+    if not isinstance(session.waiting_agent, (str, type(None))):
+        return False
     since = session.since
     return isinstance(since, (int, float)) and not isinstance(since, bool)
 

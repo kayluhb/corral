@@ -6,7 +6,7 @@ import sys
 import pytest
 
 from corral import hook, store
-from corral.state import DONE, IDLE, WORKING
+from corral.state import DONE, IDLE, WAITING, WORKING
 
 ITERM = "w0t1p0:0F3A-99"
 
@@ -107,6 +107,21 @@ def test_idle_prompt_clears_interrupted_working():
     hook.handle(ev("UserPromptSubmit", prompt="go"), ITERM, 1.0)
     hook.handle(ev("Notification", notification_type="idle_prompt"), ITERM, 70.0)
     assert store.read("0F3A-99").state == IDLE
+
+
+def test_subagent_post_tool_use_keeps_main_session_waiting():
+    hook.handle(ev("PermissionRequest"), ITERM, 1.0)
+    hook.handle(ev("PostToolUse", agent_id="sub1"), ITERM, 2.0)
+    assert store.read("0F3A-99").state == WAITING
+    hook.handle(ev("PostToolUse"), ITERM, 3.0)  # you answered; the main agent's tool ran
+    assert store.read("0F3A-99").state == WORKING
+
+
+def test_subagent_clears_its_own_permission_prompt():
+    hook.handle(ev("PermissionRequest", agent_id="sub1"), ITERM, 1.0)
+    assert store.read("0F3A-99").state == WAITING
+    hook.handle(ev("PostToolUse", agent_id="sub1"), ITERM, 2.0)  # you answered the subagent
+    assert store.read("0F3A-99").state == WORKING
 
 
 def test_unchanged_call_skips_modules_only_some_calls_need():

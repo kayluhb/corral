@@ -40,6 +40,7 @@ class Session:
     state: str
     since: float
     last_prompt: str = ""
+    waiting_agent: str | None = None  # agent_id that raised the prompt; None is the main agent
 
 
 def target_state(event: dict) -> str | None:
@@ -68,11 +69,19 @@ def transition(
     prev: Session | None, event: dict, iterm_id: str, target: str, now: float
 ) -> Session:
     name = event.get("hook_event_name")
+    agent = str(event["agent_id"]) if event.get("agent_id") else None
     if prev is not None and _is_idle_prompt(event) and prev.state != WORKING:
         return prev  # only an interrupted turn goes idle; never hide waiting/done
+    leaving = prev is not None and prev.state == WAITING and target != WAITING
+    if leaving and agent is not None and agent != prev.waiting_agent:
+        return prev  # a subagent's event only answers that subagent's own prompt
     if prev is None or name == "SessionStart":
         prev = Session(iterm_id, "", "", "", now)
     since = prev.since if prev.state == target else now
+    waiting_agent = None
+    if target == WAITING:
+        # Keep the agent that entered waiting: a later Notification may not name it.
+        waiting_agent = prev.waiting_agent if prev.state == WAITING else agent
     last_prompt = prev.last_prompt
     if name == "UserPromptSubmit":
         last_prompt = human_prompt(str(event.get("prompt") or "")) or last_prompt
@@ -83,6 +92,7 @@ def transition(
         state=target,
         since=since,
         last_prompt=last_prompt,
+        waiting_agent=waiting_agent,
     )
 
 

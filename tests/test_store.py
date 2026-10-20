@@ -72,6 +72,8 @@ def test_write_leaves_no_temp_files(tmp_state):
         '{"iterm_id":"X","claude_session_id":"c","cwd":"/","state":["done"],"since":0}',
         '{"iterm_id":"X","claude_session_id":"c","cwd":"/","state":"done","since":0,'
         '"last_prompt":7}',
+        '{"iterm_id":"X","claude_session_id":"c","cwd":"/","state":"waiting","since":0,'
+        '"waiting_agent":7}',
     ],
 )
 def test_load_all_skips_wrong_field_types(tmp_state, body):
@@ -85,3 +87,16 @@ def test_extra_fields_from_other_versions_are_ignored(tmp_state):
     body = '{"iterm_id": "A", "claude_session_id": "c", "cwd": "/p", "state": "done",'
     (tmp_state / "A.json").write_text(body + ' "since": 1.0, "tool": "Bash"}')
     assert store.read("A") == Session("A", "c", "/p", DONE, 1.0)
+
+
+def test_old_file_without_waiting_agent_loads_as_main_agent(tmp_state):
+    tmp_state.mkdir(parents=True, exist_ok=True)
+    body = '{"iterm_id": "A", "claude_session_id": "c", "cwd": "/p", "state": "waiting",'
+    (tmp_state / "A.json").write_text(body + ' "since": 1.0, "last_prompt": ""}')
+    assert store.read("A") == Session("A", "c", "/p", "waiting", 1.0, "", None)
+
+
+def test_waiting_agent_roundtrips():
+    session = Session("ABC-1", "c1", "/x/p", "waiting", 3.0, "hi", "sub1")
+    store.write(session)
+    assert store.read("ABC-1") == session
