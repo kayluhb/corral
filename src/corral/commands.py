@@ -158,17 +158,21 @@ def new(
     if not git.branch(cwd):
         return _fail(f"{cwd} is not in a git repository")
     claude = f"claude --worktree {shlex.quote(name)}"
+    # Not on the command line: iTerm rewrites backslashes in a tab's command.
+    folder_file = restore.text_file(cwd) if restore.BACKSLASH in cwd else None
+    folder = restore.read_once(folder_file) if folder_file else shlex.quote(cwd)
+    prompt_file = None
     if prompt:
-        # Not on the command line: iTerm rewrites backslashes in a tab's command.
         # After --, so a prompt that starts with - isn't read as an option.
         prompt_file = restore.text_file(prompt)
         claude += f" -- {restore.read_once(prompt_file)}"
     opened_at = now()
     try:
-        iterm_id = open_tab(restore.login_shell(f"cd {shlex.quote(cwd)} && {claude}", shell))
+        iterm_id = open_tab(restore.login_shell(f"cd {folder} && {claude}", shell))
     except CommandError as exc:
-        if prompt:  # the tab's shell would have removed it
-            prompt_file.unlink(missing_ok=True)
+        for leftover in (prompt_file, folder_file):  # the tab's shell would have removed them
+            if leftover:
+                leftover.unlink(missing_ok=True)
         return _fail(str(exc))
     print(iterm_id)  # printed either way, so a script can still find the tab
     deadline = now() + START_TIMEOUT

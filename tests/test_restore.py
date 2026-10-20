@@ -74,7 +74,7 @@ def test_resume_command_reads_a_folder_with_a_backslash_from_a_file(tmp_path, mo
     monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
     cmd = restore.resume_command("abc-123", "/p/back\\slash")
     assert "\\" not in cmd and "slash" not in cmd
-    [folder_file] = (tmp_path / "state").glob("prompt-*")
+    [folder_file] = (tmp_path / "state").glob("text-*")
     assert folder_file.read_text() == "/p/back\\slash"
     quoted = shlex.quote(str(folder_file))
     assert cmd == f'cd "$(cat {quoted}; rm -f {quoted})" && claude --resume abc-123'

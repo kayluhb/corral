@@ -23,6 +23,7 @@ from corral import pick, state, store
 KEEP_SECONDS = 7 * 24 * 3600
 BATCH_SECONDS = 30  # sessions last seen within this of the newest stopped together
 SAVE_EVERY = 5.0  # daemon writes the history at most this often
+BACKSLASH = "\\"  # iTerm rewrites these in a tab's command
 
 
 def history_path() -> Path:
@@ -88,7 +89,7 @@ def parse_choices(output: str, history: dict) -> list[tuple[str, dict]]:
 
 
 def resume_command(claude_id: str, cwd: str) -> str:
-    folder = read_once(text_file(cwd)) if "\\" in cwd else shlex.quote(cwd)
+    folder = read_once(text_file(cwd)) if BACKSLASH in cwd else shlex.quote(cwd)
     return f"cd {folder} && claude --resume {shlex.quote(claude_id)}"
 
 
@@ -99,9 +100,9 @@ def text_file(text: str) -> Path:
     """
     directory = store.state_dir()
     directory.mkdir(parents=True, exist_ok=True)
-    fd, path = tempfile.mkstemp(dir=directory, prefix="prompt-", suffix=".txt")  # mode 0600
-    with os.fdopen(fd, "w") as f:
-        f.write(text)
+    fd, path = tempfile.mkstemp(dir=directory, prefix="text-", suffix=".txt")  # mode 0600
+    with os.fdopen(fd, "w", encoding="utf-8") as text_out:
+        text_out.write(text)
     return Path(path)
 
 
