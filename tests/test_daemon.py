@@ -3,6 +3,7 @@ import time
 
 import pytest
 
+from corral import control as control_module
 from corral import daemon, settings, state, store
 from corral.state import DONE, IDLE, WAITING, WORKING, Session
 
@@ -420,7 +421,7 @@ def test_send_refuses_unknown_or_closed_sessions():
 
 def test_ping():
     d = daemon.Daemon(FakeApp([FakeSession("A")], current="A"))
-    assert control(d, {"op": "ping"}) == {"ok": True}
+    assert control(d, {"op": "ping"}) == {"ok": True, "version": control_module.version()}
 
 
 def test_explain_reports_what_iterm_says_about_the_session():

@@ -47,6 +47,7 @@ class Daemon:
         self.lock = asyncio.Lock()
         self.app_active = True  # started by a claude hook, so iTerm is almost surely frontmost
         self.tasks: list[asyncio.Task] = []
+        self.version = control.version()  # the code this daemon runs, for `corral doctor`
 
     def live_sessions(self) -> list[state.Session]:
         return [s for s in store.load_all() if self.app.get_session_by_id(s.iterm_id)]
@@ -265,7 +266,7 @@ class Daemon:
         op = message.get("op")
         iterm_id = str(message.get("iterm_id", ""))
         if op == "ping":
-            return {"ok": True}
+            return {"ok": True, "version": self.version}
         if op == "explain":
             return self.explain(iterm_id)
         if op == "send":

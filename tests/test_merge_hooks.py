@@ -2,7 +2,7 @@ import json
 import subprocess
 from pathlib import Path
 
-JQ = Path(__file__).parent.parent / "scripts" / "merge-hooks.jq"
+JQ = Path(__file__).parent.parent / "src" / "corral" / "merge-hooks.jq"
 CMD = "/Users/x/.local/bin/corral-hook"
 EVENTS = [
     "SessionStart",
