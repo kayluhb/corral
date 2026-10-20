@@ -61,6 +61,7 @@ prompt. It exits when iTerm quits and starts again with the next claude event.
 <img src="docs/picker.png" alt="The ⌘P picker in a split under the current session, listing this window's sessions by urgency" width="720">
 
 Click the corral status bar item to open a list of this window's claude tabs; click one to jump to it.
+The list, the ⌘P picker and `corral list` show each session's git branch.
 
 <img src="docs/popover.png" alt="The status bar popover listing tabs 1 to 5 with their state" width="480">
 
@@ -73,14 +74,19 @@ Scripts, and other claude sessions, can watch and drive sessions from a shell:
 | `corral list [--json]` | List sessions, most urgent first, with a short id for each. |
 | `corral wait <session> [--until <state>] [--timeout <s>]` | Wait until the session stops working: waiting, done or idle. `--until` waits for a given state instead; repeat it for several. |
 | `corral send <session> <prompt> [--wait] [--timeout <s>]` | Type the prompt into the session and press Enter. `-` reads it from stdin. `--wait` then waits until that turn stops. |
+| `corral new <name> [prompt]` | Open a tab next to yours running `claude --worktree <name> [prompt]` in this repo, and print its id once claude has started. |
 
 `<session>` is an id from `corral list`, a unique start of one, or a project name that only one
 session has. `send` refuses a session that's waiting on you, so it can't answer a permission
 prompt. It needs the daemon running.
 
 Exit codes: 0 when done, 1 when `--timeout` runs out, 2 for an error: no such session, the
-session ended or a new claude took over its tab, or no daemon. For example,
-`corral send lasso "run the tests" --wait && say "lasso is done"`.
+session ended or a new claude took over its tab, or no daemon. For example:
+
+```sh
+corral send lasso "run the tests" --wait && say "lasso is done"
+id=$(corral new fix-auth "fix the login bug") && corral wait "$id" --until done --until waiting
+```
 
 `wait` sees done turn into idle once you look at the tab, so `--until done` can miss a session you're
 watching. The default covers both.

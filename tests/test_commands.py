@@ -1,4 +1,6 @@
 import json
+import shlex
+import time
 
 import pytest
 
@@ -182,3 +184,58 @@ def test_list_shows_branches(tmp_path, capsys):
     assert "hydrogen (main)" in capsys.readouterr().out
     commands.list_sessions(as_json=True)
     assert json.loads(capsys.readouterr().out)[0]["branch"] == "main"
+
+
+# new
+
+
+def make_repo(root):
+    (root / ".git").mkdir(parents=True)
+    (root / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+    return root
+
+
+def run_new(name, prompt, repo, clock):
+    opened = []
+
+    def open_tab(command):
+        opened.append(shlex.split(command))
+        return A
+
+    code = commands.new(name, prompt, str(repo), "/bin/zsh", open_tab, clock.now, clock.sleep)
+    return code, opened
+
+
+def test_new_opens_a_worktree_claude_and_prints_its_id(tmp_path, capsys):
+    repo = make_repo(tmp_path / "my repo")
+    clock = Clock([lambda: put(A, IDLE, str(repo))])  # its SessionStart hook runs
+    code, opened = run_new("fix-auth", "fix the login", repo, clock)
+    assert code == 0
+    assert capsys.readouterr().out == f"{A}\n"
+    assert opened == [
+        [
+            "/bin/zsh",
+            "-lic",
+            f"cd '{repo}' && claude --worktree fix-auth 'fix the login'; exec /bin/zsh -l",
+        ]
+    ]
+
+
+def test_new_without_a_prompt(tmp_path):
+    repo = make_repo(tmp_path / "proj")
+    _, opened = run_new("x", "", repo, Clock([lambda: put(A, IDLE, str(repo))]))
+    assert opened[0][2] == f"cd {repo} && claude --worktree x; exec /bin/zsh -l"
+
+
+def test_new_needs_a_git_repo(tmp_path, capsys):
+    code = commands.new("x", "", str(tmp_path), "/bin/zsh", lambda c: A, time.time, time.sleep)
+    assert code == 2
+    assert "not in a git repository" in capsys.readouterr().err
+
+
+def test_new_still_prints_the_id_when_claude_is_slow_to_start(tmp_path, capsys):
+    repo = make_repo(tmp_path / "proj")
+    code, _ = run_new("x", "", repo, Clock())
+    assert code == 1
+    captured = capsys.readouterr()
+    assert captured.out == f"{A}\n" and "hasn't started" in captured.err

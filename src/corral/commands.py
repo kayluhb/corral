@@ -1,23 +1,27 @@
-"""`corral list`, `corral wait` and `corral send`: drive sessions from a shell or another claude.
+"""`corral list`, `wait`, `send` and `new`: drive sessions from a shell or another claude.
 
-list and wait read the state files directly; send needs the daemon, which types through iTerm.
+list and wait read the state files directly; send needs the daemon, which types through iTerm;
+new opens an iTerm tab itself, as `corral restore` does.
 Exit codes: 0 done, 1 timed out, 2 error (no such session, it ended, daemon not running...).
 """
 
 from __future__ import annotations
 
 import json
+import os
+import shlex
 import sys
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import asdict
 
-from corral import control, git, state, store
+from corral import control, git, restore, state, store
 from corral.pick import LABEL_WIDTH, age, label
 from corral.state import Session
 
 STOPPED = frozenset({state.WAITING, state.DONE, state.IDLE})  # wait's default: not working
 POLL_SECONDS = 0.5
+START_TIMEOUT = 30.0  # seconds for a new tab's claude to start
 SHORT_ID = 8
 
 
@@ -114,6 +118,63 @@ def send(
     if wait_until is None:
         return 0
     return wait(s.iterm_id, wait_until, timeout, after=sent_at, now=now, sleep=sleep)
+
+
+def new(
+    name: str,
+    prompt: str,
+    cwd: str,
+    shell: str,
+    open_tab: Callable[[str], str],
+    now: Callable[[], float] = time.time,
+    sleep: Callable[[float], None] = time.sleep,
+) -> int:
+    """Open a tab running `claude --worktree name [prompt]` and print its id once it starts.
+
+    open_tab runs a command in a new tab and returns the tab's iTerm session id.
+    """
+    if not git.branch(cwd):
+        return _fail(f"{cwd} is not in a git repository")
+    claude = f"claude --worktree {shlex.quote(name)}"
+    if prompt:
+        claude += f" {shlex.quote(prompt)}"
+    try:
+        iterm_id = open_tab(restore.login_shell(f"cd {shlex.quote(cwd)} && {claude}", shell))
+    except CommandError as exc:
+        return _fail(str(exc))
+    print(iterm_id)  # printed either way, so a script can still find the tab
+    deadline = now() + START_TIMEOUT
+    while store.read(iterm_id) is None:
+        if now() >= deadline:
+            print(f"corral: claude hasn't started in {iterm_id[:SHORT_ID]} yet", file=sys.stderr)
+            return 1
+        sleep(POLL_SECONDS)
+    return 0
+
+
+def open_tab_next_to_you(command: str) -> str:
+    """Open a tab running command in your iTerm window (a new window if there's none)."""
+    import iterm2  # only `new` needs it; keeps list and wait fast
+
+    origin = os.environ.get("ITERM_SESSION_ID", "").rsplit(":", 1)[-1]
+    result: list[str] = []
+
+    async def run(connection: iterm2.Connection) -> None:
+        app = await iterm2.async_get_app(connection)
+        session = app.get_session_by_id(origin) if origin else None
+        window = session.window if session else app.current_terminal_window
+        if window is None:
+            window = await iterm2.Window.async_create(connection, command=command)
+            tab = window.current_tab if window else None
+        else:
+            tab = await window.async_create_tab(command=command)
+        if tab is not None and tab.current_session is not None:
+            result.append(tab.current_session.session_id)
+
+    iterm2.run_until_complete(run)
+    if not result:
+        raise CommandError("iTerm didn't open the tab")
+    return result[0]
 
 
 def _fail(message: str) -> int:

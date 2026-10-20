@@ -52,11 +52,15 @@ def resume_command(claude_id: str, cwd: str) -> str:
 
 
 def tab_command(claude_id: str, cwd: str, shell: str) -> str:
-    """The tab's own command: resume claude in an interactive login shell, then stay a shell.
+    return login_shell(resume_command(claude_id, cwd), shell)
+
+
+def login_shell(command: str, shell: str) -> str:
+    """A tab's own command: run command in an interactive login shell, then stay a shell.
 
     Typing the command into a fresh tab races shell startup, which can discard typeahead.
     """
-    inner = f"{resume_command(claude_id, cwd)}; exec {shlex.quote(shell)} -l"
+    inner = f"{command}; exec {shlex.quote(shell)} -l"
     return f"{shlex.quote(shell)} -lic {shlex.quote(inner)}"
 
 

@@ -42,3 +42,14 @@ def test_wait_defaults_to_until_stopped(monkeypatch):
     monkeypatch.setattr(commands, "wait", lambda *a, **kw: calls.append(kw) or 0)
     run_cli(monkeypatch, "wait", "lasso")
     assert calls == [{"until": commands.STOPPED, "timeout": None}]
+
+
+def test_new_runs_in_the_current_folder(monkeypatch, tmp_path):
+    calls = []
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("SHELL", "/bin/bash")
+    monkeypatch.setattr(commands, "new", lambda *a: calls.append(a) or 0)
+    assert run_cli(monkeypatch, "new", "fix-auth", "fix", "the", "login") == 0
+    assert calls == [
+        ("fix-auth", "fix the login", str(tmp_path), "/bin/bash", commands.open_tab_next_to_you)
+    ]

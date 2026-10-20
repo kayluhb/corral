@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
@@ -28,6 +29,9 @@ def main() -> None:
     p.add_argument("text", nargs="+", help="the prompt; - reads it from stdin")
     p.add_argument("--wait", action="store_true", help="then wait until that turn stops")
     p.add_argument("--timeout", type=float, help="with --wait: seconds; exits 1 when it runs out")
+    p = sub.add_parser("new", help="open a tab with claude in a new git worktree; prints its id")
+    p.add_argument("name", help="the worktree's name (claude --worktree <name>)")
+    p.add_argument("prompt", nargs="*", help="a first prompt for it")
     sub.add_parser("restore", help="reopen the claude sessions that were running last time")
     sub.add_parser("settings", help="change corral's settings (arrow-key menu)")
     sub.add_parser("setup", help="add the corral status bar item and hotkeys to iTerm")
@@ -44,6 +48,10 @@ def main() -> None:
         text = sys.stdin.read() if args.text == ["-"] else " ".join(args.text)
         wait_until = commands.STOPPED if args.wait else None
         sys.exit(commands.send(args.target, text, wait_until=wait_until, timeout=args.timeout))
+    if args.command == "new":
+        shell = os.environ.get("SHELL", "/bin/zsh")
+        prompt = " ".join(args.prompt)
+        sys.exit(commands.new(args.name, prompt, os.getcwd(), shell, commands.open_tab_next_to_you))
     if args.command == "settings":
         sys.exit(settings.menu())
     if args.command in (None, "restore"):
