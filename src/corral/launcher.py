@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import fcntl
 import os
-import subprocess
 import sys
 from pathlib import Path
 
@@ -40,6 +39,8 @@ def running() -> bool:
 
 
 def spawn() -> None:
+    import subprocess  # here, not at the top: the hook runs on every tool use
+
     LOG.parent.mkdir(parents=True, exist_ok=True)
     with open(LOG, "a") as log:
         subprocess.Popen(

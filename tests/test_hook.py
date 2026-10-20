@@ -107,3 +107,17 @@ def test_idle_prompt_clears_interrupted_working():
     hook.handle(ev("UserPromptSubmit", prompt="go"), ITERM, 1.0)
     hook.handle(ev("Notification", notification_type="idle_prompt"), ITERM, 70.0)
     assert store.read("0F3A-99").state == IDLE
+
+
+def test_unchanged_call_skips_modules_only_some_calls_need():
+    # The hook runs on every tool use; these imports cost ~7ms and only matter when
+    # the daemon must start (subprocess) or the state changes (tempfile).
+    hook.handle(ev("UserPromptSubmit", prompt="go"), ITERM, 2.0)
+    code = (
+        "import sys; from corral import hook, launcher\n"
+        "launcher.running()\n"
+        f"hook.handle({ev('PostToolUse')!r}, {ITERM!r}, 3.0)\n"
+        "print(sorted({'subprocess', 'tempfile'} & set(sys.modules)))"
+    )
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert r.stdout.strip() == "[]"

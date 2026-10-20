@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import tempfile
 from dataclasses import asdict, fields
 from pathlib import Path
 
@@ -59,6 +58,8 @@ def read(iterm_id: str) -> Session | None:
 
 
 def write(session: Session) -> None:
+    import tempfile  # here, not at the top: most hook calls don't change the state
+
     path = _path(session.iterm_id)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-")

@@ -141,4 +141,4 @@ or restore `settings.json.corral-bak`.
 - If you deny a permission prompt, the session stays "waiting" until Claude's next event. That is usually Stop, after which it shows as done.
 - A claude that is killed without a SessionEnd keeps a stale state until its tab closes or a new claude starts there.
 - On the tab you're in, corral sets "no custom tab colour", which overrides any custom tab colour in your profile.
-- The hook takes about 70ms per call and runs on every tool use.
+- The hook takes about 30ms per call and runs on every tool use.
