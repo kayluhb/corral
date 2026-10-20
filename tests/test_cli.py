@@ -6,12 +6,19 @@ from corral import cli, commands, restore
 def test_bare_corral_runs_restore(monkeypatch):
     calls = []
     monkeypatch.setattr(sys, "argv", ["corral"])
-    monkeypatch.setattr(restore, "run", lambda: calls.append(1) or 0)
+    monkeypatch.setattr(restore, "run", lambda **kw: calls.append(kw) or 0)
     try:
         cli.main()
     except SystemExit as exit:
         assert exit.code == 0
-    assert calls == [1]
+    assert calls == [{"choose_from_history": False}]
+
+
+def test_restore_pick_chooses_from_history(monkeypatch):
+    calls = []
+    monkeypatch.setattr(restore, "run", lambda **kw: calls.append(kw) or 0)
+    assert run_cli(monkeypatch, "restore", "--pick") == 0
+    assert calls == [{"choose_from_history": True}]
 
 
 def run_cli(monkeypatch, *argv):

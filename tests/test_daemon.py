@@ -71,7 +71,10 @@ class FakeApp:
 
     @property
     def terminal_windows(self):
-        return [type("Window", (), {"tabs": tabs})() for tabs in self.window_tabs]
+        return [
+            type("Window", (), {"tabs": tabs, "window_id": f"W{n}"})()
+            for n, tabs in enumerate(self.window_tabs)
+        ]
 
     @property
     def current_window(self):
@@ -219,6 +222,18 @@ def test_tick_records_restore_history_without_forgetting_earlier_sessions():
     history = restore.load()
     assert set(history) == {"from-last-time", "c"}
     assert history["c"]["cwd"] == "/p/A"
+
+
+def test_tick_records_each_sessions_window():
+    from corral import restore
+
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="A", windows=[[[a]], [[b]]]))
+    store.write(Session("A", "c1", "/p/A", WORKING, 1.0))
+    store.write(Session("B", "c2", "/p/B", WORKING, 1.0))
+    tick(d)
+    history = restore.load()
+    assert (history["c1"]["window"], history["c2"]["window"]) == ("W0", "W1")
 
 
 def test_grouping_comes_from_corral_settings(monkeypatch):
