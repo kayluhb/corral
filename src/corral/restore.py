@@ -23,6 +23,7 @@ from corral import pick, state, store
 KEEP_SECONDS = 7 * 24 * 3600
 BATCH_SECONDS = 30  # sessions last seen within this of the newest stopped together
 SAVE_EVERY = 5.0  # daemon writes the history at most this often
+BACKSLASH = "\\"  # iTerm rewrites these in a tab's command
 
 
 def history_path() -> Path:
@@ -88,7 +89,27 @@ def parse_choices(output: str, history: dict) -> list[tuple[str, dict]]:
 
 
 def resume_command(claude_id: str, cwd: str) -> str:
-    return f"cd {shlex.quote(cwd)} && claude --resume {shlex.quote(claude_id)}"
+    folder = read_once(text_file(cwd)) if BACKSLASH in cwd else shlex.quote(cwd)
+    return f"cd {folder} && claude --resume {shlex.quote(claude_id)}"
+
+
+def text_file(text: str) -> Path:
+    """Save text for a tab's command to read with read_once.
+
+    iTerm rewrites backslashes in a tab's command, so text that can hold them goes this way.
+    """
+    directory = store.state_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    fd, path = tempfile.mkstemp(dir=directory, prefix="text-", suffix=".txt")  # mode 0600
+    with os.fdopen(fd, "w", encoding="utf-8") as text_out:
+        text_out.write(text)
+    return Path(path)
+
+
+def read_once(path: Path) -> str:
+    """A shell word that expands to the file's text, and deletes the file."""
+    quoted = shlex.quote(str(path))
+    return f'"$(cat {quoted}; rm -f {quoted})"'
 
 
 def tab_command(claude_id: str, cwd: str, shell: str) -> str:
@@ -176,24 +197,62 @@ def run(choose_from_history: bool = False) -> int:
         if not confirm(chosen):
             return 0
     if chosen:
-        open_windows(by_window(chosen))
+        windows = by_window(chosen)
+        try:
+            open_windows(windows)
+        except PartialRestore as exc:
+            print(
+                f"corral: reopened {exc.sessions} of {len(chosen)} sessions"
+                f" ({exc.windows} of {len(windows)} windows), then iTerm failed: {exc.__cause__}"
+            )
+            return 1
+        except (SystemExit, OSError):  # iterm2 exits on ConnectionRefusedError
+            print("corral: couldn't reach iTerm; is it running with the Python API on?")
+            return 1
         print(f"Reopened {len(chosen)}.")
     return 0
 
 
+class PartialRestore(Exception):
+    """iTerm failed after some sessions had reopened."""
+
+    def __init__(self, sessions: int, windows: int):
+        super().__init__(f"reopened {sessions} sessions in {windows} windows")
+        self.sessions = sessions
+        self.windows = windows
+
+
 def open_windows(windows: list[list[tuple[str, dict]]]) -> None:
+    """Reopen each window's sessions as its tabs.
+
+    Raises PartialRestore if iTerm fails after a session reopens.
+    """
     import iterm2  # only needed once you say yes; keeps the prompt fast
 
+    sessions = windows_opened = 0
+    failure: Exception | None = None
+
     async def open_tabs(connection: iterm2.Connection) -> None:
+        nonlocal sessions, windows_opened, failure
         await iterm2.async_get_app(connection)  # wires up Window.async_create_tab
         shell = os.environ.get("SHELL", "/bin/zsh")
-        for tabs in windows:
-            window = None
-            for claude_id, v in tabs:
-                command = tab_command(claude_id, v["cwd"], shell)
-                if window is None:
-                    window = await iterm2.Window.async_create(connection, command=command)
-                else:
-                    await window.async_create_tab(command=command)
+        try:
+            for tabs in windows:
+                window = None
+                for claude_id, v in tabs:
+                    command = tab_command(claude_id, v["cwd"], shell)
+                    if window is None:
+                        window = await iterm2.Window.async_create(connection, command=command)
+                        windows_opened += 1
+                    else:
+                        await window.async_create_tab(command=command)
+                    sessions += 1
+        except Exception as exc:
+            if not sessions:
+                raise
+            # iterm2 turns an exception from here into exit(1), so hand it over on return.
+            failure = exc
 
     iterm2.run_until_complete(open_tabs)
+    if failure:
+        raise PartialRestore(sessions, windows_opened) from failure

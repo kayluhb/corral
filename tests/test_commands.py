@@ -218,7 +218,7 @@ def test_new_opens_a_worktree_claude_and_prints_its_id(tmp_path, capsys):
     repo = make_repo(tmp_path / "my repo")
     started = [lambda: put(A, IDLE, str(repo)), lambda: put(A, WORKING, str(repo), since=101.0)]
     clock = Clock(started)  # its SessionStart hook runs, then its prompt's turn starts
-    prompt = "don't break the regex \\d+"
+    prompt = "-d: don't break the regex \\d+"  # starts with -, so it must follow --
     code, opened = run_new("fix-auth", prompt, repo, clock)
     assert code == 0
     assert capsys.readouterr().out == f"{A}\n"
@@ -226,12 +226,12 @@ def test_new_opens_a_worktree_claude_and_prints_its_id(tmp_path, capsys):
     assert (shell, flags) == ("/bin/zsh", "-lic")
     # iTerm rewrites backslashes in a tab's command, so the prompt travels in a file.
     assert "\\" not in inner and "regex" not in inner
-    [prompt_file] = store.state_dir().glob("prompt-*")
+    [prompt_file] = store.state_dir().glob("text-*")
     assert prompt_file.read_text() == prompt
     assert prompt_file.stat().st_mode & 0o077 == 0
     quoted = shlex.quote(str(prompt_file))
     assert inner == (
-        f"cd '{repo}' && claude --worktree fix-auth \"$(cat {quoted}; rm -f {quoted})\""
+        f"cd '{repo}' && claude --worktree fix-auth -- \"$(cat {quoted}; rm -f {quoted})\""
         "; exec /bin/zsh -l"
     )
 
@@ -358,7 +358,32 @@ def test_new_removes_the_prompt_file_when_the_tab_does_not_open(tmp_path, capsys
 
     code = commands.new("x", "go", str(repo), "/bin/zsh", fail, time.time, time.sleep)
     assert code == 2 and "didn't open" in capsys.readouterr().err
-    assert list(store.state_dir().glob("prompt-*")) == []
+    assert list(store.state_dir().glob("text-*")) == []
+
+
+def test_new_reads_a_folder_with_a_backslash_from_a_file(tmp_path):
+    # iTerm rewrites backslashes in a tab's command.
+    repo = make_repo(tmp_path / "back\\slash")
+    clock = Clock([lambda: put(A, IDLE, str(repo))])
+    code, opened = run_new("x", None, repo, clock)
+    assert code == 0
+    [(_, _, inner)] = opened
+    assert "\\" not in inner and "slash" not in inner
+    [folder_file] = store.state_dir().glob("text-*")
+    assert folder_file.read_text() == str(repo)
+    quoted = shlex.quote(str(folder_file))
+    assert inner.startswith(f'cd "$(cat {quoted}; rm -f {quoted})" && claude --worktree x')
+
+
+def test_new_removes_the_folder_and_prompt_files_when_the_tab_does_not_open(tmp_path, capsys):
+    repo = make_repo(tmp_path / "back\\slash")
+
+    def fail(command):
+        raise commands.CommandError("iTerm didn't open the tab")
+
+    code = commands.new("x", "go", str(repo), "/bin/zsh", fail, time.time, time.sleep)
+    assert code == 2 and "didn't open" in capsys.readouterr().err
+    assert list(store.state_dir().glob("text-*")) == []
 
 
 def test_new_with_a_prompt_fails_when_its_turn_never_starts(tmp_path, capsys):
