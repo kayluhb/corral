@@ -218,7 +218,7 @@ def test_new_opens_a_worktree_claude_and_prints_its_id(tmp_path, capsys):
     repo = make_repo(tmp_path / "my repo")
     started = [lambda: put(A, IDLE, str(repo)), lambda: put(A, WORKING, str(repo), since=101.0)]
     clock = Clock(started)  # its SessionStart hook runs, then its prompt's turn starts
-    prompt = "don't break the regex \\d+"
+    prompt = "-d: don't break the regex \\d+"  # starts with -, so it must follow --
     code, opened = run_new("fix-auth", prompt, repo, clock)
     assert code == 0
     assert capsys.readouterr().out == f"{A}\n"
@@ -231,7 +231,7 @@ def test_new_opens_a_worktree_claude_and_prints_its_id(tmp_path, capsys):
     assert prompt_file.stat().st_mode & 0o077 == 0
     quoted = shlex.quote(str(prompt_file))
     assert inner == (
-        f"cd '{repo}' && claude --worktree fix-auth \"$(cat {quoted}; rm -f {quoted})\""
+        f"cd '{repo}' && claude --worktree fix-auth -- \"$(cat {quoted}; rm -f {quoted})\""
         "; exec /bin/zsh -l"
     )
 

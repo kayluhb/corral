@@ -1,4 +1,5 @@
 import shlex
+import subprocess
 
 from corral import restore
 from corral.state import IDLE, WORKING, Session
@@ -66,6 +67,26 @@ def test_tab_command_runs_resume_in_a_login_shell_then_stays_open():
         "-lic",
         "cd '/p/my project' && claude --resume abc-123; exec /bin/zsh -l",
     ]
+
+
+def test_resume_command_reads_a_folder_with_a_backslash_from_a_file(tmp_path, monkeypatch):
+    # iTerm rewrites backslashes in a tab's command.
+    monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
+    cmd = restore.resume_command("abc-123", "/p/back\\slash")
+    assert "\\" not in cmd and "slash" not in cmd
+    [folder_file] = (tmp_path / "state").glob("prompt-*")
+    assert folder_file.read_text() == "/p/back\\slash"
+    quoted = shlex.quote(str(folder_file))
+    assert cmd == f'cd "$(cat {quoted}; rm -f {quoted})" && claude --resume abc-123'
+
+
+def test_read_once_expands_to_the_text_and_deletes_the_file(tmp_path, monkeypatch):
+    monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
+    path = restore.text_file("/p/back\\slash and space")
+    word = restore.read_once(path)
+    out = subprocess.run(["/bin/sh", "-c", f"printf %s {word}"], capture_output=True, text=True)
+    assert out.stdout == "/p/back\\slash and space"
+    assert not path.exists()
 
 
 def test_history_roundtrip(tmp_path, monkeypatch):
@@ -211,6 +232,19 @@ def test_restore_opens_one_window_per_old_window(tmp_path, monkeypatch):
     monkeypatch.setattr(restore, "open_windows", opened.append)
     assert restore.run() == 0
     assert [[k for k, _ in w] for w in opened[0]] == [["a"], ["b"]]
+
+
+def test_restore_says_so_when_iterm_is_unreachable(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
+    restore.save({"a": entry("/p/a", 100.0)})
+    monkeypatch.setattr("builtins.input", lambda *_: "y")
+
+    def refuse(windows):
+        raise SystemExit(1)  # what iterm2.run_until_complete does on ConnectionRefusedError
+
+    monkeypatch.setattr(restore, "open_windows", refuse)
+    assert restore.run() == 1
+    assert "couldn't reach iTerm" in capsys.readouterr().out
 
 
 def test_open_windows_starts_each_window_then_adds_its_tabs(monkeypatch):

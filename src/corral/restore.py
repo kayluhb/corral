@@ -88,7 +88,27 @@ def parse_choices(output: str, history: dict) -> list[tuple[str, dict]]:
 
 
 def resume_command(claude_id: str, cwd: str) -> str:
-    return f"cd {shlex.quote(cwd)} && claude --resume {shlex.quote(claude_id)}"
+    folder = read_once(text_file(cwd)) if "\\" in cwd else shlex.quote(cwd)
+    return f"cd {folder} && claude --resume {shlex.quote(claude_id)}"
+
+
+def text_file(text: str) -> Path:
+    """Save text for a tab's command to read with read_once.
+
+    iTerm rewrites backslashes in a tab's command, so text that can hold them goes this way.
+    """
+    directory = store.state_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    fd, path = tempfile.mkstemp(dir=directory, prefix="prompt-", suffix=".txt")  # mode 0600
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    return Path(path)
+
+
+def read_once(path: Path) -> str:
+    """A shell word that expands to the file's text, and deletes the file."""
+    quoted = shlex.quote(str(path))
+    return f'"$(cat {quoted}; rm -f {quoted})"'
 
 
 def tab_command(claude_id: str, cwd: str, shell: str) -> str:
@@ -176,7 +196,11 @@ def run(choose_from_history: bool = False) -> int:
         if not confirm(chosen):
             return 0
     if chosen:
-        open_windows(by_window(chosen))
+        try:
+            open_windows(by_window(chosen))
+        except (SystemExit, OSError):  # iterm2 exits on ConnectionRefusedError
+            print("corral: couldn't reach iTerm; is it running with the Python API on?")
+            return 1
         print(f"Reopened {len(chosen)}.")
     return 0
 

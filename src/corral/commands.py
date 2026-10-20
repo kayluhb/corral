@@ -14,7 +14,6 @@ import sys
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import asdict
-from pathlib import Path
 
 from corral import control, git, restore, state, store
 from corral.pick import LABEL_WIDTH, age, label
@@ -161,9 +160,9 @@ def new(
     claude = f"claude --worktree {shlex.quote(name)}"
     if prompt:
         # Not on the command line: iTerm rewrites backslashes in a tab's command.
-        prompt_file = _prompt_file(prompt)
-        path = shlex.quote(str(prompt_file))
-        claude += f' "$(cat {path}; rm -f {path})"'
+        # After --, so a prompt that starts with - isn't read as an option.
+        prompt_file = restore.text_file(prompt)
+        claude += f" -- {restore.read_once(prompt_file)}"
     opened_at = now()
     try:
         iterm_id = open_tab(restore.login_shell(f"cd {shlex.quote(cwd)} && {claude}", shell))
@@ -181,17 +180,6 @@ def new(
     if prompt:  # so a `corral wait` straight after sees this turn, not claude's start-up idle
         return wait(iterm_id, {state.WORKING}, START_TIMEOUT, opened_at, now, sleep)
     return 0
-
-
-def _prompt_file(prompt: str) -> Path:
-    import tempfile
-
-    directory = store.state_dir()
-    directory.mkdir(parents=True, exist_ok=True)
-    fd, path = tempfile.mkstemp(dir=directory, prefix="prompt-", suffix=".txt")  # mode 0600
-    with os.fdopen(fd, "w") as prompt_file:
-        prompt_file.write(prompt)
-    return Path(path)
 
 
 def open_tab_next_to_you(command: str) -> str:
