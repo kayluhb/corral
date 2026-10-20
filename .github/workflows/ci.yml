@@ -5,9 +5,15 @@ on:
     branches: [main]
   pull_request:
 
+# A new push to a PR cancels its older runs, so they don't queue for a macOS runner.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     runs-on: macos-latest
+    timeout-minutes: 10  # the suite takes seconds; a hang fails here, not after hours
     strategy:
       matrix:
         python: ["3.10", "3.13"]
