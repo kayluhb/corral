@@ -53,8 +53,10 @@ def test_socket_is_private_whatever_the_umask(short_state):
             server = await control.serve(lambda message: None)
         finally:
             os.umask(old)
+        # Python 3.13+ unlinks the socket on close, so stat it first.
+        mode = control.path().stat().st_mode & 0o777
         server.close()
-        return control.path().stat().st_mode & 0o777
+        return mode
 
     assert asyncio.run(run()) == 0o600
 
