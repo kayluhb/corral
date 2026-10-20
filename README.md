@@ -82,7 +82,8 @@ Scripts, and other claude sessions, can watch and drive sessions from a shell:
 
 `<session>` is an id from `corral list`, a unique start of one, or a project name that only one
 session has. `send` refuses a session that's waiting on you, so it can't answer a permission
-prompt. It needs the daemon running.
+prompt, and one where you've half-typed a prompt, so Enter doesn't submit your draft with it.
+It needs the daemon running.
 
 Exit codes: 0 when done, 1 when `--timeout` runs out, 2 for an error: no such session, the
 session ended or a new claude took over its tab, or no daemon. For example:

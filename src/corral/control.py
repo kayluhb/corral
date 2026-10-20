@@ -19,6 +19,10 @@ TIMEOUT = 5.0
 LIMIT = 16 * 1024 * 1024  # longest request line; asyncio's default 64 KiB is a long prompt
 _PASTE_START, _PASTE_END = "\x1b[200~", "\x1b[201~"
 _UNSAFE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")  # control characters except tab and newline
+INPUT_MARK = "❯\xa0"  # starts claude's input box line, which sits between two rules
+RULE = "─"
+
+Cell = tuple[str, bool]  # (text, faint)
 
 
 class Unavailable(Exception):
@@ -38,6 +42,30 @@ def path() -> Path:
 def paste(text: str) -> str:
     """text as a bracketed paste, so its newlines don't submit it line by line."""
     return f"{_PASTE_START}{_UNSAFE.sub('', text)}{_PASTE_END}"
+
+
+def draft(lines: list[list[Cell]]) -> str:
+    """What you've typed into claude's input box on this screen, or "" when nothing is.
+
+    The faint suggestion claude shows in an empty box doesn't count. Without an input box on
+    screen (it's in a menu, say), this can't tell, so it returns "".
+    """
+    texts = ["".join(text for text, _ in line) for line in lines]
+    boxes = [
+        i
+        for i, text in enumerate(texts)
+        if text.startswith(INPUT_MARK) and i and texts[i - 1].startswith(RULE)
+    ]
+    if not boxes:
+        return ""
+    start = boxes[-1]  # earlier prompts in the transcript also start with the mark
+    typed = []
+    for n in range(start, len(lines)):
+        if n > start and texts[n].startswith(RULE):
+            break
+        cells = lines[n][len(INPUT_MARK) :] if n == start else lines[n]
+        typed += [text for text, faint in cells if not faint]
+    return "".join(typed).strip()
 
 
 async def serve(handle: Callable[[dict], Awaitable[dict]]) -> asyncio.Server:

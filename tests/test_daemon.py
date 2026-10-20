@@ -2,6 +2,8 @@ import asyncio
 import time
 
 import pytest
+from iterm2 import api_pb2
+from iterm2.screen import LineContents
 
 from corral import control as control_module
 from corral import daemon, settings, state, store
@@ -17,6 +19,10 @@ class FakeSession:
         self.typed: list[str] = []  # async_send_text calls, in order
         self.on_type = None  # called after each async_send_text
         self.status = None  # iTerm's Claude Code integration status; None when it reports none
+        self.screen = ["─" * 10, "❯\xa0", "─" * 10]  # claude's empty input box
+
+    async def async_get_screen_contents(self):
+        return FakeScreen(self.screen)
 
     async def async_get_variable(self, name):
         assert name == "status"
@@ -40,6 +46,26 @@ class FakeSession:
 
     async def async_close(self, force=False):
         self.closed = True
+
+
+class FakeLine:
+    def __init__(self, text):
+        self.string = text
+
+    def string_at(self, x):
+        return self.string[x]
+
+    def style_at(self, x):
+        return None
+
+
+class FakeScreen:
+    def __init__(self, lines):
+        self.number_of_lines = len(lines)
+        self.lines = [FakeLine(text) for text in lines]
+
+    def line(self, i):
+        return self.lines[i]
 
 
 class FakeTab:
@@ -469,3 +495,26 @@ def test_send_holds_back_enter_if_a_prompt_appears_while_pasting(monkeypatch):
     reply = control(d, {"op": "send", "iterm_id": "A", "text": "go"})
     assert "waiting" in reply["error"] and "not submitted" in reply["error"]
     assert a.typed == ["\x1b[200~go\x1b[201~"]  # no Enter
+
+
+def test_send_refuses_a_session_with_a_half_typed_prompt():
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", DONE)
+    a.screen = ["─" * 10, "❯\xa0fix the", "─" * 10]
+    assert "half-typed" in control(d, {"op": "send", "iterm_id": "A", "text": "go"})["error"]
+    assert a.typed == []
+
+
+def test_screen_cells_reads_faint_cells_and_cells_with_no_characters():
+    per_cell = [(1, 2), (0, 1), (1, 1)]  # (code points, repeats): "a", "界", its right half, "b"
+    line = LineContents(
+        api_pb2.LineContents(
+            text="a界b",
+            code_points_per_cell=[
+                api_pb2.CodePointsPerCell(num_code_points=n, repeats=r) for n, r in per_cell
+            ],
+            style=[api_pb2.CellStyle(repeats=3), api_pb2.CellStyle(faint=True, repeats=1)],
+        )
+    )
+    assert daemon.screen_cells(line) == [("a", False), ("界", False), ("", False), ("b", True)]
