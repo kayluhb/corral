@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import itertools
 import os
 import shlex
 import subprocess
@@ -342,12 +343,13 @@ class Daemon:
 
 def screen_cells(line: iterm2.LineContents) -> list[control.Cell]:
     cells = []
-    for x in range(len(line.string)):  # never fewer characters than cells
-        style = line.style_at(x)
+    for x in itertools.count():  # a cell can hold no characters, so line.string can't bound this
         try:
-            cells.append((line.string_at(x), bool(style and style.faint)))
+            text = line.string_at(x)
         except IndexError:  # past the last cell
             break
+        style = line.style_at(x)
+        cells.append((text, bool(style and style.faint)))
     return cells
 
 

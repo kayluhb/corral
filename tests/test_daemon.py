@@ -2,6 +2,8 @@ import asyncio
 import time
 
 import pytest
+from iterm2 import api_pb2
+from iterm2.screen import LineContents
 
 from corral import daemon, settings, state, store
 from corral.state import DONE, IDLE, WAITING, WORKING, Session
@@ -499,3 +501,17 @@ def test_send_refuses_a_session_with_a_half_typed_prompt():
     a.screen = ["─" * 10, "❯\xa0fix the", "─" * 10]
     assert "half-typed" in control(d, {"op": "send", "iterm_id": "A", "text": "go"})["error"]
     assert a.typed == []
+
+
+def test_screen_cells_reads_faint_cells_and_cells_with_no_characters():
+    per_cell = [(1, 2), (0, 1), (1, 1)]  # (code points, repeats): "a", "界", its right half, "b"
+    line = LineContents(
+        api_pb2.LineContents(
+            text="a界b",
+            code_points_per_cell=[
+                api_pb2.CodePointsPerCell(num_code_points=n, repeats=r) for n, r in per_cell
+            ],
+            style=[api_pb2.CellStyle(repeats=3), api_pb2.CellStyle(faint=True, repeats=1)],
+        )
+    )
+    assert daemon.screen_cells(line) == [("a", False), ("界", False), ("", False), ("b", True)]

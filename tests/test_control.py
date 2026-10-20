@@ -120,3 +120,12 @@ def test_draft_ignores_earlier_prompts_in_the_transcript():
 
 def test_no_input_box_on_screen_means_no_draft():
     assert control.draft(screen("Select model", "❯\xa01. Opus")) == ""
+
+
+def test_draft_ignores_a_faint_suggestion_after_typed_text():
+    assert control.draft(screen(RULE, "❯\xa0fix[ the bug]", RULE)) == "fix"
+
+
+def test_draft_reads_the_last_input_box_when_an_earlier_prompt_has_a_rule_above_it():
+    lines = screen(RULE, "❯\xa0an old prompt", "⏺ Sure.", RULE, "❯\xa0", RULE)
+    assert control.draft(lines) == ""
