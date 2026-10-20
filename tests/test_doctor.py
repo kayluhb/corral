@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 
 import pytest
 
@@ -21,7 +20,7 @@ def settings_with(tmp_path, events):
 
 
 def test_hook_events_match_what_install_merges():
-    jq = (Path(__file__).parents[1] / "scripts" / "merge-hooks.jq").read_text()
+    jq = doctor.HOOKS_JQ.read_text()
     assert set(doctor.hook_events(jq)) == {
         "SessionStart",
         "UserPromptSubmit",
@@ -68,7 +67,8 @@ def test_hotkeys_check_names_unbound_functions():
 
 
 def test_daemon_check(monkeypatch):
-    monkeypatch.setattr(control, "request", lambda msg: {"ok": True})
+    monkeypatch.setattr(control, "version", lambda: "1.2.0")
+    monkeypatch.setattr(control, "request", lambda msg: {"ok": True, "version": "1.2.0"})
     assert doctor.check_daemon()[0]
 
     def down(msg):
@@ -82,6 +82,15 @@ def test_daemon_check(monkeypatch):
     monkeypatch.setattr(doctor, "daemon_process", lambda: True)
     ok, detail = doctor.check_daemon()
     assert not ok and "pkill" in detail  # an older daemon without the control socket
+
+
+def test_daemon_check_flags_a_daemon_running_other_code(monkeypatch):
+    monkeypatch.setattr(control, "version", lambda: "1.2.0")
+    monkeypatch.setattr(control, "request", lambda msg: {"ok": True, "version": "1.1.0"})
+    ok, detail = doctor.check_daemon()
+    assert not ok and "runs corral 1.1.0, but 1.2.0 is installed" in detail and "pkill" in detail
+    monkeypatch.setattr(control, "request", lambda msg: {"ok": True})  # 1.1.0 didn't say
+    assert "runs an older corral" in doctor.check_daemon()[1]
 
 
 def test_report_prints_each_check_and_fails_if_any_does(capsys):

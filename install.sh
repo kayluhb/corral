@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 # Install corral: CLI + hook + daemon (uv tool), Claude Code hooks, iTerm status bar + hotkeys.
+# --dev installs in editable mode, so the tools run whatever this folder has checked out.
 set -euo pipefail
+
+case "${1:-}" in
+  "" | --dev) ;;
+  *) echo "usage: $0 [--dev]" >&2; exit 2 ;;
+esac
 
 REPO="$(cd "$(dirname "$0")" && pwd)"
 SETTINGS="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
@@ -13,7 +19,13 @@ command -v fzf >/dev/null || brew install fzf
 command -v jq >/dev/null || { echo "jq is required"; exit 1; }
 
 echo "==> Installing corral CLI, hook and daemon"
-uv tool install --editable "$REPO" --with "iterm2==2.30" --force
+if [ "${1:-}" = "--dev" ]; then
+  uv tool install --editable "$REPO" --with "iterm2==2.30" --force
+else
+  # A copy, so checking out another branch doesn't change the hook and daemon under you.
+  uv tool install "$REPO" --with "iterm2==2.30" --force --reinstall-package corral
+fi
+pkill -f 'corral.cli daemon' || true  # the next claude event starts it on the new code
 
 rm -f "$OLD_SHIM"  # earlier installs used iTerm AutoLaunch; never run two daemons
 
@@ -21,7 +33,7 @@ echo "==> Merging hooks into $SETTINGS"
 [ -f "$SETTINGS" ] || echo '{}' > "$SETTINGS"
 [ -f "$SETTINGS.corral-bak" ] || cp "$SETTINGS" "$SETTINGS.corral-bak"  # keep the pre-corral original
 tmp="$(mktemp)"
-jq --arg cmd "$HOOK_CMD" -f "$REPO/scripts/merge-hooks.jq" "$SETTINGS" > "$tmp"
+jq --arg cmd "$HOOK_CMD" -f "$REPO/src/corral/merge-hooks.jq" "$SETTINGS" > "$tmp"
 mv "$tmp" "$SETTINGS"
 
 echo "==> iTerm2: status bar item and hotkeys"

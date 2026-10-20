@@ -25,6 +25,12 @@ class Unavailable(Exception):
     """The daemon isn't running (or isn't listening)."""
 
 
+def version() -> str:
+    from importlib import metadata  # here, not at the top: the hook imports this module
+
+    return metadata.version("corral")
+
+
 def path() -> Path:
     return store.state_dir() / "daemon.sock"
 

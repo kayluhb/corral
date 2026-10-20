@@ -12,7 +12,7 @@ from pathlib import Path
 from corral import control, pick
 
 Check = tuple[bool, str]  # (ok, detail: what's wrong and how to fix it)
-HOOKS_JQ = Path(__file__).resolve().parents[2] / "scripts" / "merge-hooks.jq"  # editable install
+HOOKS_JQ = Path(__file__).resolve().parent / "merge-hooks.jq"
 HOTKEY_FUNCTIONS = ("corral_next_waiting", "corral_next_done", "corral_pick")
 _ADD = re.compile(r'^\| add\("(\w+)"', re.MULTILINE)
 
@@ -69,15 +69,21 @@ def daemon_process() -> bool:
     return subprocess.run(["pgrep", "-f", "corral.cli daemon"], capture_output=True).returncode == 0
 
 
+RESTART = "pkill -f 'corral.cli daemon' to restart it"
+
+
 def check_daemon() -> Check:
     try:
-        control.request({"op": "ping"})
-        return True, ""
+        running = control.request({"op": "ping"}).get("version")
     except control.Unavailable:
-        pass
-    if daemon_process():
-        return False, "an older daemon is running; pkill -f 'corral.cli daemon' to restart it"
-    return False, "not running; it starts with the next claude event in iTerm"
+        if daemon_process():
+            return False, f"an older daemon is running; {RESTART}"
+        return False, "not running; it starts with the next claude event in iTerm"
+    installed = control.version()
+    if running != installed:
+        old = f"corral {running}" if running else "an older corral"
+        return False, f"it runs {old}, but {installed} is installed; {RESTART}"
+    return True, ""
 
 
 def check_fzf() -> Check:
@@ -97,8 +103,8 @@ def run() -> int:
     def hooks() -> Check:
         try:
             events = hook_events(HOOKS_JQ.read_text())
-        except OSError:  # corral wasn't installed from its repo folder
-            return False, f"can't read {HOOKS_JQ} to compare against"
+        except OSError:
+            return False, f"can't read {HOOKS_JQ} to compare against; run ./install.sh"
         return check_hooks(settings_path(), events)
 
     return report(

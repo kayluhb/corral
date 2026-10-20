@@ -32,16 +32,18 @@ cd corral
 ./install.sh
 ```
 
-The script installs corral from this folder in editable mode, so keep the folder. To upgrade,
-`git fetch --tags && git checkout <new tag>` and run `./install.sh` again. See
-[CHANGELOG.md](CHANGELOG.md) for what changed.
+The script installs a copy of corral, so checking out another branch here doesn't change what
+runs. To upgrade, `git fetch --tags && git checkout <new tag>` and run `./install.sh` again. See
+[CHANGELOG.md](CHANGELOG.md) for what changed. To work on corral, `./install.sh --dev` installs
+it in editable mode instead, so the hook and daemon run whatever this folder has checked out.
 
 If iTerm2's Python API is off, the script turns it on (Settings → General → Magic →
 **Enable Python API**) and asks you to restart iTerm2 and run it again.
 
 The script:
 
-- runs `uv tool install`, which provides `corral` and `corral-hook`;
+- runs `uv tool install`, which provides `corral` and `corral-hook`, and stops a running daemon
+  so the next claude event starts the new code;
 - merges hook entries into `~/.claude/settings.json`, backing up the original once to
   `settings.json.corral-bak`;
 - runs `corral setup`, which adds the corral item to your default profile's status bar and
@@ -172,8 +174,8 @@ or restore `settings.json.corral-bak`.
 ## Troubleshooting
 
 Run `corral doctor`. It checks the Claude Code hooks, the iTerm2 Python API and hotkeys, the
-daemon and fzf, and says how to fix anything that's missing. For one session that looks wrong,
-run `corral explain <session>`.
+daemon (and that it runs the installed version) and fzf, and says how to fix anything that's
+missing. For one session that looks wrong, run `corral explain <session>`.
 
 ## Known limitations
 
