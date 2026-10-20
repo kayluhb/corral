@@ -1,6 +1,8 @@
 import shlex
 import subprocess
 
+import pytest
+
 from corral import restore
 from corral.state import IDLE, WORKING, Session
 
@@ -247,33 +249,83 @@ def test_restore_says_so_when_iterm_is_unreachable(tmp_path, monkeypatch, capsys
     assert "couldn't reach iTerm" in capsys.readouterr().out
 
 
-def test_open_windows_starts_each_window_then_adds_its_tabs(monkeypatch):
+def test_restore_says_how_far_it_got_when_iterm_fails_partway(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
+    restore.save(
+        {"a": entry("/p/a", 100.0, 0, window="A"), "b": entry("/p/b", 100.0, 1, window="B")}
+    )
+    monkeypatch.setattr("builtins.input", lambda *_: "y")
+
+    def fail_after_one(windows):
+        raise restore.PartialRestore(1, 1) from OSError("connection lost")
+
+    monkeypatch.setattr(restore, "open_windows", fail_after_one)
+    assert restore.run() == 1
+    out = capsys.readouterr().out
+    assert "reopened 1 of 2 sessions (1 of 2 windows), then iTerm failed: connection lost" in out
+    assert "couldn't reach iTerm" not in out
+
+
+TWO_WINDOWS = [
+    [("a1", entry("/p", 1.0)), ("a2", entry("/p", 1.0, 1))],
+    [("b1", entry("/p", 1.0, 2))],
+]
+
+
+def fake_iterm2(monkeypatch, fail_on=None):
+    """Record what open_windows asks iTerm for; raise OSError when asked for fail_on."""
     import asyncio
     import sys
     import types
 
     calls = []
 
+    def call(kind, command):
+        if command == fail_on:
+            raise OSError("connection lost")
+        calls.append((kind, command))
+
     class Window:
         @staticmethod
         async def async_create(connection, command):
-            calls.append(("window", command))
+            call("window", command)
             return Window()
 
         async def async_create_tab(self, command):
-            calls.append(("tab", command))
+            call("tab", command)
 
     async def async_get_app(connection):
         pass
 
+    def run_until_complete(main):
+        try:
+            asyncio.run(main(None))
+        except Exception:  # what iterm2 does with an exception from main
+            sys.exit(1)
+
     iterm2 = types.SimpleNamespace(
-        Window=Window,
-        async_get_app=async_get_app,
-        run_until_complete=lambda main: asyncio.run(main(None)),
+        Window=Window, async_get_app=async_get_app, run_until_complete=run_until_complete
     )
     monkeypatch.setitem(sys.modules, "iterm2", iterm2)
     monkeypatch.setattr(restore, "tab_command", lambda claude_id, cwd, shell: claude_id)
-    restore.open_windows(
-        [[("a1", entry("/p", 1.0)), ("a2", entry("/p", 1.0, 1))], [("b1", entry("/p", 1.0, 2))]]
-    )
+    return calls
+
+
+def test_open_windows_starts_each_window_then_adds_its_tabs(monkeypatch):
+    calls = fake_iterm2(monkeypatch)
+    restore.open_windows(TWO_WINDOWS)
     assert calls == [("window", "a1"), ("tab", "a2"), ("window", "b1")]
+
+
+def test_open_windows_counts_what_opened_before_iterm_failed(monkeypatch):
+    fake_iterm2(monkeypatch, fail_on="b1")
+    with pytest.raises(restore.PartialRestore) as failed:
+        restore.open_windows(TWO_WINDOWS)
+    assert (failed.value.sessions, failed.value.windows) == (2, 1)
+    assert str(failed.value.__cause__) == "connection lost"
+
+
+def test_open_windows_exits_like_iterm2_when_nothing_opened(monkeypatch):
+    fake_iterm2(monkeypatch, fail_on="a1")
+    with pytest.raises(SystemExit):  # so run says it couldn't reach iTerm
+        restore.open_windows(TWO_WINDOWS)

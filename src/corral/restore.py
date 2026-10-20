@@ -197,8 +197,15 @@ def run(choose_from_history: bool = False) -> int:
         if not confirm(chosen):
             return 0
     if chosen:
+        windows = by_window(chosen)
         try:
-            open_windows(by_window(chosen))
+            open_windows(windows)
+        except PartialRestore as exc:
+            print(
+                f"corral: reopened {exc.sessions} of {len(chosen)} sessions"
+                f" ({exc.windows} of {len(windows)} windows), then iTerm failed: {exc.__cause__}"
+            )
+            return 1
         except (SystemExit, OSError):  # iterm2 exits on ConnectionRefusedError
             print("corral: couldn't reach iTerm; is it running with the Python API on?")
             return 1
@@ -206,19 +213,46 @@ def run(choose_from_history: bool = False) -> int:
     return 0
 
 
+class PartialRestore(Exception):
+    """iTerm failed after some sessions had reopened."""
+
+    def __init__(self, sessions: int, windows: int):
+        super().__init__(f"reopened {sessions} sessions in {windows} windows")
+        self.sessions = sessions
+        self.windows = windows
+
+
 def open_windows(windows: list[list[tuple[str, dict]]]) -> None:
+    """Reopen each window's sessions as its tabs.
+
+    Raises PartialRestore if iTerm fails after a session reopens.
+    """
     import iterm2  # only needed once you say yes; keeps the prompt fast
 
+    sessions = windows_opened = 0
+    failure: Exception | None = None
+
     async def open_tabs(connection: iterm2.Connection) -> None:
+        nonlocal sessions, windows_opened, failure
         await iterm2.async_get_app(connection)  # wires up Window.async_create_tab
         shell = os.environ.get("SHELL", "/bin/zsh")
-        for tabs in windows:
-            window = None
-            for claude_id, v in tabs:
-                command = tab_command(claude_id, v["cwd"], shell)
-                if window is None:
-                    window = await iterm2.Window.async_create(connection, command=command)
-                else:
-                    await window.async_create_tab(command=command)
+        try:
+            for tabs in windows:
+                window = None
+                for claude_id, v in tabs:
+                    command = tab_command(claude_id, v["cwd"], shell)
+                    if window is None:
+                        window = await iterm2.Window.async_create(connection, command=command)
+                        windows_opened += 1
+                    else:
+                        await window.async_create_tab(command=command)
+                    sessions += 1
+        except Exception as exc:
+            if not sessions:
+                raise
+            # iterm2 turns an exception from here into exit(1), so hand it over on return.
+            failure = exc
 
     iterm2.run_until_complete(open_tabs)
+    if failure:
+        raise PartialRestore(sessions, windows_opened) from failure
