@@ -33,7 +33,8 @@ cd corral
 ```
 
 The script installs corral from this folder in editable mode, so keep the folder. To upgrade,
-`git fetch --tags && git checkout <new tag>` and run `./install.sh` again.
+`git fetch --tags && git checkout <new tag>` and run `./install.sh` again. See
+[CHANGELOG.md](CHANGELOG.md) for what changed.
 
 If iTerm2's Python API is off, the script turns it on (Settings → General → Magic →
 **Enable Python API**) and asks you to restart iTerm2 and run it again.
