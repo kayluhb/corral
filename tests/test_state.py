@@ -244,6 +244,17 @@ def test_panes_of_one_tab_share_its_number():
     assert state.status_variants(ss, tabs, "b")[0] == "1 🟠 hydrogen [✋ hydrogen] | 2 🟢 lasso"
 
 
+def test_narrow_bar_keeps_idle_panes_of_a_busy_tab():
+    ss = [
+        mk("a", DONE, cwd="/p/sales"),
+        mk("b", IDLE, cwd="/p/sales"),
+        mk("c", IDLE, cwd="/p/hydrogen"),
+        mk("d", WORKING, cwd="/p/corral"),
+    ]
+    tabs = {"a": 2, "b": 2, "c": 3, "d": 5}
+    assert state.status_variants(ss, tabs, "d")[1] == "2 🟢 sales ⚪ sales | 5 [🟠 corral]"
+
+
 def test_status_variants_dedupes_and_handles_empty():
     assert state.status_variants([mk("a", WORKING, cwd="/p/x")], {}, None) == ["🟠 x", "🟠1"]
     assert state.status_variants([mk("a", IDLE, cwd="/p/x")], {}, None) == ["⚪ x", state.QUIET]

@@ -197,7 +197,12 @@ def status_variants(
             for run in (list(r) for _, r in runs)
         )
 
-    variants = [listing(sessions), listing(s for s in sessions if s.state != IDLE)]
+    def in_busy_tab(s: Session) -> bool:
+        """Not idle, or sharing a tab with a session that isn't, so a tab is shown whole."""
+        return s.state != IDLE or (s.iterm_id in tabs and tabs[s.iterm_id] in busy_tabs)
+
+    busy_tabs = {tabs.get(s.iterm_id) for s in sessions if s.state != IDLE}
+    variants = [listing(sessions), listing(s for s in sessions if in_busy_tab(s))]
     variants.append(summary(sessions))
     return [v for i, v in enumerate(variants) if v and v not in variants[:i]]
 
