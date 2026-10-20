@@ -419,9 +419,11 @@ def test_send_refuses_unknown_or_closed_sessions():
     assert "unknown" in control(d, {"op": "nope"})["error"]
 
 
-def test_ping():
+def test_ping_reports_the_version_the_daemon_started_on(monkeypatch):
+    monkeypatch.setattr(control_module, "version", lambda: "1.2.0")
     d = daemon.Daemon(FakeApp([FakeSession("A")], current="A"))
-    assert control(d, {"op": "ping"}) == {"ok": True, "version": control_module.version()}
+    monkeypatch.setattr(control_module, "version", lambda: "9.9.9")  # an upgrade on disk
+    assert control(d, {"op": "ping"}) == {"ok": True, "version": "1.2.0"}
 
 
 def test_explain_reports_what_iterm_says_about_the_session():

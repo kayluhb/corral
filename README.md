@@ -175,8 +175,7 @@ or restore `settings.json.corral-bak`.
 
 Run `corral doctor`. It checks the Claude Code hooks, the iTerm2 Python API and hotkeys, the
 daemon (and that it runs the installed version) and fzf, and says how to fix anything that's
-missing. For one session that looks wrong,
-run `corral explain <session>`.
+missing. For one session that looks wrong, run `corral explain <session>`.
 
 ## Known limitations
 

@@ -3,6 +3,11 @@
 # --dev installs in editable mode, so the tools run whatever this folder has checked out.
 set -euo pipefail
 
+case "${1:-}" in
+  "" | --dev) ;;
+  *) echo "usage: $0 [--dev]" >&2; exit 2 ;;
+esac
+
 REPO="$(cd "$(dirname "$0")" && pwd)"
 SETTINGS="${CLAUDE_SETTINGS:-$HOME/.claude/settings.json}"
 HOOK_CMD="$HOME/.local/bin/corral-hook"

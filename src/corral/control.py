@@ -26,9 +26,9 @@ class Unavailable(Exception):
 
 
 def version() -> str:
-    from importlib.metadata import version  # here, not at the top: the hook imports this module
+    from importlib import metadata  # here, not at the top: the hook imports this module
 
-    return version("corral")
+    return metadata.version("corral")
 
 
 def path() -> Path:
