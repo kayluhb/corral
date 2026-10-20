@@ -137,8 +137,9 @@ becomes idle once you focus the tab. Sessions iTerm reports nothing for use corr
 
 ![A window with five claude tabs: corral's status bar, red and green tab colours and iTerm's status dots](docs/overview.png)
 
-The status bar lists the claude tabs in its own window, in tab order: its tab number (the ⌘N), state and
-project, with the tab you're in bracketed, for example `1✋ hydrogen  [2🟠 corral]  3🟢 lasso`.
+The status bar lists the claude tabs in its own window, in tab order: its tab number (the ⌘N), then
+the state and project of each pane in it, with the pane you're in bracketed, for example
+`1 ✋ hydrogen | 2 [🟠 corral] 🟢 corral | 3 🟢 lasso`.
 When the bar is narrow it drops idle tabs, then falls back to counts (`✋1 🟠1 🟢1`). With nothing
 going on in the window it reads `all quiet`. Tab colours, titles and notifications
 still cover every window. A colour is never shown on the tab you're
