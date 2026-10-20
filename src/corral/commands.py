@@ -143,7 +143,8 @@ def new(
     now: Callable[[], float] = time.time,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
-    """Open a tab running `claude --worktree name [prompt]` and print its id once it starts.
+    """Open a tab running `claude --worktree name [prompt]` and print its id once it starts
+    (and, with a prompt, once that prompt's turn has started).
 
     open_tab runs a command in a new tab and returns the tab's iTerm session id.
     """
@@ -154,6 +155,7 @@ def new(
         # Not on the command line: iTerm rewrites backslashes in a tab's command.
         path = shlex.quote(str(_prompt_file(prompt)))
         claude += f' "$(cat {path}; rm -f {path})"'
+    opened_at = now()
     try:
         iterm_id = open_tab(restore.login_shell(f"cd {shlex.quote(cwd)} && {claude}", shell))
     except CommandError as exc:
@@ -165,6 +167,8 @@ def new(
             print(f"corral: claude hasn't started in {iterm_id[:SHORT_ID]} yet", file=sys.stderr)
             return 1
         sleep(POLL_SECONDS)
+    if prompt:  # so a `corral wait` straight after sees this turn, not claude's start-up idle
+        return wait(iterm_id, {state.WORKING}, START_TIMEOUT, opened_at, now, sleep)
     return 0
 
 

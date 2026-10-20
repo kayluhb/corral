@@ -208,7 +208,8 @@ def run_new(name, prompt, repo, clock):
 
 def test_new_opens_a_worktree_claude_and_prints_its_id(tmp_path, capsys):
     repo = make_repo(tmp_path / "my repo")
-    clock = Clock([lambda: put(A, IDLE, str(repo))])  # its SessionStart hook runs
+    started = [lambda: put(A, IDLE, str(repo)), lambda: put(A, WORKING, str(repo), since=101.0)]
+    clock = Clock(started)  # its SessionStart hook runs, then its prompt's turn starts
     prompt = "don't break the regex \\d+"
     code, opened = run_new("fix-auth", prompt, repo, clock)
     assert code == 0
@@ -324,3 +325,18 @@ def test_open_tab_reports_an_unreachable_iterm(monkeypatch):
     monkeypatch.setattr(iterm2, "run_until_complete", refuse)
     with pytest.raises(commands.CommandError, match="iTerm"):
         commands.open_tab_next_to_you("true")
+
+
+def test_new_with_a_prompt_returns_once_its_turn_starts(tmp_path):
+    # Otherwise a `corral wait` right after would see claude's start-up idle and return.
+    repo = make_repo(tmp_path / "proj")
+    clock = Clock(
+        [
+            lambda: put(A, IDLE, str(repo), since=100.1),
+            lambda: None,
+            lambda: put(A, WORKING, str(repo), since=100.3),
+        ]
+    )
+    code, _ = run_new("x", "go", repo, clock)
+    assert code == 0
+    assert store.read(A).state == WORKING and clock.t >= 100.3

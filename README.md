@@ -74,7 +74,7 @@ Scripts, and other claude sessions, can watch and drive sessions from a shell:
 | `corral list [--json]` | List sessions, most urgent first, with a short id for each. |
 | `corral wait <session> [--until <state>] [--timeout <s>]` | Wait until the session stops working: waiting, done or idle. `--until` waits for a given state instead; repeat it for several. |
 | `corral send <session> <prompt> [--wait] [--timeout <s>]` | Type the prompt into the session and press Enter. `-` reads it from stdin. `--wait` then waits until that turn stops. |
-| `corral new <name> [prompt]` | Open a tab next to yours running `claude --worktree <name> [prompt]` in this repo, and print its id once claude has started. |
+| `corral new <name> [prompt]` | Open a tab next to yours running `claude --worktree <name> [prompt]` in this repo, and print its id once claude has started (and, with a prompt, once its turn has). |
 | `corral explain <session>` | Show what corral knows about a session: its state and for how long, whether iTerm or corral's hooks supplied it, its tab, and the command to resume it. |
 
 `<session>` is an id from `corral list`, a unique start of one, or a project name that only one
@@ -86,7 +86,7 @@ session ended or a new claude took over its tab, or no daemon. For example:
 
 ```sh
 corral send lasso "run the tests" --wait && say "lasso is done"
-id=$(corral new fix-auth "fix the login bug") && corral wait "$id" --until done --until waiting
+id=$(corral new fix-auth "fix the login bug") && corral wait "$id"
 ```
 
 `wait` sees done turn into idle once you look at the tab, so `--until done` can miss a session you're
