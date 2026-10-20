@@ -7,10 +7,11 @@ import subprocess
 import time
 from pathlib import Path
 
-from corral import state, store
+from corral import git, state, store
 from corral.state import Session
 
 FZF_FALLBACKS = ("/opt/homebrew/bin/fzf", "/usr/local/bin/fzf")
+LABEL_WIDTH = 36
 
 
 def age(seconds: float) -> str:
@@ -21,10 +22,17 @@ def age(seconds: float) -> str:
     return f"{seconds}s"
 
 
+def label(cwd: str) -> str:
+    """The project, with its git branch when it has one: "corral (fix-auth)"."""
+    project, branch = state.project_name(cwd), git.branch(cwd)
+    return f"{project} ({branch})" if branch else project
+
+
 def format_line(s: Session, now: float) -> str:
-    project = state.clean(state.project_name(s.cwd), 24)
+    project = state.clean(label(s.cwd), LABEL_WIDTH)
     prompt = state.clean(s.last_prompt, 80)
-    return f"{s.iterm_id}\t{state.ICONS[s.state]} {project:<24} {age(now - s.since):>4}  {prompt}"
+    when = age(now - s.since)
+    return f"{s.iterm_id}\t{state.ICONS[s.state]} {project:<{LABEL_WIDTH}} {when:>4}  {prompt}"
 
 
 def parse_choice(line: str) -> str | None:

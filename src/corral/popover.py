@@ -14,7 +14,7 @@ import secrets
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 
-from corral import state, store
+from corral import git, state, store
 
 _REQUEST = re.compile(r"^GET /focus/([^?\s]+)\?t=(\S+) HTTP/1\.[01]$")
 
@@ -30,7 +30,8 @@ body { margin: 0; padding: 6px; font: 13px -apple-system, system-ui, sans-serif;
 .row:hover { background: var(--hover); }
 .current { background: var(--current); }
 .tab { color: var(--muted); min-width: 1.2em; text-align: right; }
-.prompt { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.prompt, .branch { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.branch { flex: none; max-width: 30%; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
   align-self: center; flex: none; }
 .working { background: #f2a647; }  /* sampled from iTerm's tab dot */
@@ -56,6 +57,7 @@ def render(
         cls = "row current" if s.iterm_id == current else "row"
         href = html.escape(f"{url}/{s.iterm_id}?t={token}")
         project = state.project_name(s.cwd) if show_project else ""
+        branch = git.branch(s.cwd)
         # A coloured dot like iTerm's tabs; waiting keeps the hand, as in tab titles.
         icon = (
             f"<span>{state.ICONS[s.state]}</span>"
@@ -67,6 +69,7 @@ def render(
             f'<span class="tab">{tabs.get(s.iterm_id, "")}</span>'
             + icon
             + (f"<span>{html.escape(project)}</span>" if project else "")
+            + (f'<span class="branch">{html.escape(branch)}</span>' if branch else "")
             + f'<span class="prompt">{html.escape(s.last_prompt)}</span></a>'
         )
 

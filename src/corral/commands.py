@@ -12,8 +12,8 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import asdict
 
-from corral import control, state, store
-from corral.pick import age
+from corral import control, git, state, store
+from corral.pick import LABEL_WIDTH, age, label
 from corral.state import Session
 
 STOPPED = frozenset({state.WAITING, state.DONE, state.IDLE})  # wait's default: not working
@@ -45,17 +45,19 @@ def resolve(sessions: Iterable[Session], target: str) -> Session:
 def list_sessions(as_json: bool, now: Callable[[], float] = time.time) -> int:
     sessions = state.ordered(store.load_all())
     if as_json:
-        rows = [{**asdict(s), "project": state.project_name(s.cwd)} for s in sessions]
+        rows = [
+            {**asdict(s), "project": state.project_name(s.cwd), "branch": git.branch(s.cwd)}
+            for s in sessions
+        ]
         print(json.dumps(rows, indent=2))
         return 0
     if not sessions:
         print("corral: no claude sessions")
     t = now()
     for s in sessions:
-        project = state.clean(state.project_name(s.cwd), 24)
-        line = (
-            f"{s.iterm_id[:SHORT_ID]}  {state.ICONS[s.state]} {project:<24} {age(t - s.since):>4}"
-        )
+        project = state.clean(label(s.cwd), LABEL_WIDTH)
+        when = age(t - s.since)
+        line = f"{s.iterm_id[:SHORT_ID]}  {state.ICONS[s.state]} {project:<{LABEL_WIDTH}} {when:>4}"
         print(f"{line}  {s.last_prompt}".rstrip())
     return 0
 

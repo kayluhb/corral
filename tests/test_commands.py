@@ -171,3 +171,14 @@ def test_send_wait_waits_for_that_prompts_turn(monkeypatch):
     code = commands.send(A, "go", wait_until=commands.STOPPED, now=clock.now, sleep=clock.sleep)
     assert code == 0
     assert clock.t == 101.0
+
+
+def test_list_shows_branches(tmp_path, capsys):
+    repo = tmp_path / "hydrogen"
+    (repo / ".git").mkdir(parents=True)
+    (repo / ".git" / "HEAD").write_text("ref: refs/heads/main\n")
+    put(A, IDLE, str(repo))
+    commands.list_sessions(as_json=False)
+    assert "hydrogen (main)" in capsys.readouterr().out
+    commands.list_sessions(as_json=True)
+    assert json.loads(capsys.readouterr().out)[0]["branch"] == "main"

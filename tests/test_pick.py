@@ -41,3 +41,12 @@ def test_run_lists_only_the_given_sessions(tmp_path, monkeypatch):
     monkeypatch.setattr(pick.subprocess, "run", fake_run)
     pick.run(tmp_path / "out", only={"ID-1"})
     assert "mine" in seen["input"] and "elsewhere" not in seen["input"]
+
+
+def test_label_adds_the_branch_when_in_a_repo(tmp_path):
+    (tmp_path / "corral" / ".git").mkdir(parents=True)
+    (tmp_path / "corral" / ".git" / "HEAD").write_text("ref: refs/heads/fix-auth\n")
+    assert pick.label(str(tmp_path / "corral")) == "corral (fix-auth)"
+    assert pick.label(str(tmp_path)) == tmp_path.name
+    line = pick.format_line(Session("ID-1", "c", str(tmp_path / "corral"), WAITING, 1.0), 2.0)
+    assert "corral (fix-auth)" in line

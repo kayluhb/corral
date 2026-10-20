@@ -91,3 +91,12 @@ def test_server_closes_idle_connections_quietly(monkeypatch, capsys):
 
     asyncio.run(scenario())
     assert capsys.readouterr().out == ""
+
+
+def test_render_shows_the_branch(tmp_path):
+    repo = tmp_path / "hydrogen"
+    (repo / ".git").mkdir(parents=True)
+    (repo / ".git" / "HEAD").write_text("ref: refs/heads/<fix>\n")
+    for group in (False, True):
+        html = popover.render([mk("A-1", DONE, str(repo))], {}, None, URL, "t", group)
+        assert '<span class="branch">&lt;fix&gt;</span>' in html
