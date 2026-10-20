@@ -27,7 +27,7 @@ claude tabs. Nothing replaces your tabs or needs clicking.
 ## Install
 
 ```sh
-git clone --branch v1.1.0 https://github.com/kayluhb/corral.git
+git clone --branch v1.1.1 https://github.com/kayluhb/corral.git
 cd corral
 ./install.sh
 ```
