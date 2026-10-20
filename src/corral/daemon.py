@@ -189,7 +189,7 @@ class Daemon:
         answered = status == state.WAITING and s.state != state.WAITING
         if s.state == status or ((seen or answered) and not changed):
             return s
-        s = replace(s, state=status, since=now)
+        s = replace(s, state=status, since=now, waiting_agent=None)  # iTerm names no agent
         store.write(s)
         return s
 

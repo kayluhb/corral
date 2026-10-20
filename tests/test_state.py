@@ -186,6 +186,40 @@ def test_subagent_event_does_not_leave_waiting():
     assert state.transition(mk(st=DONE), sub, "A", WORKING, 9.0).state == WORKING
 
 
+SUB_PROMPT = {"hook_event_name": "PermissionRequest", "agent_id": "x"}
+SUB_TOOL = {"hook_event_name": "PostToolUse", "agent_id": "x"}
+
+
+def test_subagent_answers_its_own_prompt():
+    waiting = state.transition(mk(st=WORKING), SUB_PROMPT, "A", WAITING, 1.0)
+    assert (waiting.state, waiting.waiting_agent) == (WAITING, "x")
+    done = state.transition(waiting, SUB_TOOL, "A", WORKING, 2.0)
+    assert (done.state, done.waiting_agent) == (WORKING, None)
+
+
+def test_other_subagent_does_not_answer_a_prompt():
+    other = {"hook_event_name": "PostToolUse", "agent_id": "y"}
+    for raised_by in ({"hook_event_name": "PermissionRequest"}, SUB_PROMPT):
+        waiting = state.transition(mk(st=WORKING), raised_by, "A", WAITING, 1.0)
+        assert state.transition(waiting, other, "A", WORKING, 2.0) == waiting
+
+
+def test_main_agent_answers_any_prompt():
+    main = {"hook_event_name": "PostToolUse"}
+    for raised_by in ({"hook_event_name": "PermissionRequest"}, SUB_PROMPT):
+        waiting = state.transition(mk(st=WORKING), raised_by, "A", WAITING, 1.0)
+        assert state.transition(waiting, main, "A", WORKING, 2.0).state == WORKING
+
+
+def test_later_waiting_event_keeps_the_agent_that_asked():
+    # The permission_prompt Notification comes ~6s after PermissionRequest.
+    waiting = state.transition(mk(st=WORKING), SUB_PROMPT, "A", WAITING, 1.0)
+    note = {"hook_event_name": "Notification", "notification_type": "permission_prompt"}
+    still = state.transition(waiting, note, "A", WAITING, 7.0)
+    assert (still.waiting_agent, still.since) == ("x", 1.0)
+    assert state.transition(still, SUB_TOOL, "A", WORKING, 8.0).state == WORKING
+
+
 def test_status_variants_longest_first():
     ss = [
         mk("a", WAITING, cwd="/p/hydrogen"),

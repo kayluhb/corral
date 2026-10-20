@@ -117,6 +117,13 @@ def test_subagent_post_tool_use_keeps_main_session_waiting():
     assert store.read("0F3A-99").state == WORKING
 
 
+def test_subagent_clears_its_own_permission_prompt():
+    hook.handle(ev("PermissionRequest", agent_id="sub1"), ITERM, 1.0)
+    assert store.read("0F3A-99").state == WAITING
+    hook.handle(ev("PostToolUse", agent_id="sub1"), ITERM, 2.0)  # you answered the subagent
+    assert store.read("0F3A-99").state == WORKING
+
+
 def test_unchanged_call_skips_modules_only_some_calls_need():
     # The hook runs on every tool use; these imports cost ~7ms and only matter when
     # the daemon must start (subprocess) or the state changes (tempfile).
