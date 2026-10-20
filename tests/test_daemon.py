@@ -183,8 +183,8 @@ def test_status_bar_lists_sessions_in_tab_order():
     put("A", WAITING)
     put("B", WORKING)
     tick(d)
-    assert d.status("C")[0] == "1🟠 B  3✋ A"
-    assert d.status("A")[0] == "1🟠 B  [3✋ A]"
+    assert d.status("C")[0] == "1 🟠 B | 3 ✋ A"
+    assert d.status("A")[0] == "1 🟠 B | 3 [✋ A]"
 
 
 def two_windows():
@@ -199,8 +199,8 @@ def two_windows():
 
 def test_status_bar_lists_only_its_own_window():
     d = two_windows()
-    assert d.status("A")[0] == "[1🟠 A]  2✋ B"
-    assert d.status("C")[0] == "[1✋ C]"
+    assert d.status("A")[0] == "1 [🟠 A] | 2 ✋ B"
+    assert d.status("C")[0] == "1 [✋ C]"
 
 
 def test_status_bar_is_quiet_in_a_window_without_claude():
@@ -269,10 +269,10 @@ def test_grouping_comes_from_corral_settings(monkeypatch):
     store.write(Session("A", "c1", "/p/hydrogen", WORKING, 1.0))
     store.write(Session("B", "c2", "/p/hydrogen", WAITING, 1.0))
     tick(d)
-    assert d.status("A")[0] == "[1🟠 hydrogen]  2✋ hydrogen"
+    assert d.status("A")[0] == "1 [🟠 hydrogen] | 2 ✋ hydrogen"
     settings.save(settings.Settings(group=True))
     tick(d)
-    assert d.status("A")[0] == "[1 hydrogen 🟠✋]"
+    assert d.status("A")[0] == "1 [hydrogen 🟠✋]"
 
 
 def test_tab_colours_off_clears_and_stops_painting():

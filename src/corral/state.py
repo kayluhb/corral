@@ -6,6 +6,7 @@ import os
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
+from itertools import groupby
 
 WAITING = "waiting"
 WORKING = "working"
@@ -155,6 +156,9 @@ def by_project(sessions: Iterable[Session]) -> list[tuple[str, list[Session]]]:
     return list(groups.items())
 
 
+SEPARATOR = " | "
+
+
 def status_variants(
     sessions: Iterable[Session],
     tabs: dict[str, int],
@@ -163,7 +167,8 @@ def status_variants(
 ) -> list[str]:
     """Status bar texts, longest first; iTerm shows the longest that fits.
 
-    tabs maps iterm_id -> tab number (the ⌘N for it); current is bracketed.
+    tabs maps iterm_id -> tab number (the ⌘N for it), shown once per tab with "|" between
+    tabs: "1 🟠 hydrogen ✋ hydrogen | 2 🟢 lasso". The current session is bracketed.
     With group, sessions of one project collapse into one entry: "1 hydrogen ✋🟠".
     """
     sessions = list(sessions)
@@ -172,18 +177,25 @@ def status_variants(
         return f"[{text}]" if any(s.iterm_id == current for s in members) else text
 
     def entry(s: Session) -> str:
-        return mark(f"{tabs.get(s.iterm_id, '')}{ICONS[s.state]} {project_name(s.cwd)}", [s])
+        return f"{ICONS[s.state]} {project_name(s.cwd)}"
 
-    def group_entry(project: str, members: list[Session]) -> str:
-        if len(members) == 1:
-            return entry(members[0])
-        icons = "".join(ICONS[s.state] for s in members)
-        return mark(f"{tabs.get(members[0].iterm_id, '')} {project} {icons}".strip(), members)
+    def entries(items: Iterable[Session]) -> Iterable[tuple[int | str, str]]:
+        if not group:
+            for s in items:
+                yield tabs.get(s.iterm_id, ""), mark(entry(s), [s])
+            return
+        for project, members in by_project(items):
+            icons = "".join(ICONS[s.state] for s in members)
+            text = entry(members[0]) if len(members) == 1 else f"{project} {icons}"
+            yield tabs.get(members[0].iterm_id, ""), mark(text, members)
 
     def listing(items: Iterable[Session]) -> str:
-        if group:
-            return "  ".join(group_entry(p, m) for p, m in by_project(items))
-        return "  ".join(entry(s) for s in items)
+        # an entry without a tab number gets a key of its own so it isn't merged
+        runs = groupby(entries(items), key=lambda e: e[0] if e[0] != "" else object())
+        return SEPARATOR.join(
+            f"{run[0][0]} {' '.join(text for _, text in run)}".strip()
+            for run in (list(r) for _, r in runs)
+        )
 
     variants = [listing(sessions), listing(s for s in sessions if s.state != IDLE)]
     variants.append(summary(sessions))
