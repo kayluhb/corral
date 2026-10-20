@@ -124,7 +124,7 @@ def test_wait_after_ignores_states_reached_before_then():
     put(A, DONE, since=50.0)  # finished before the prompt was sent
     clock = Clock([lambda: put(A, WORKING, since=100.5), lambda: put(A, DONE, since=101.0)])
     assert wait(A, clock, after=100.0) == 0
-    assert clock.t == 101.0
+    assert clock.t == pytest.approx(100.6)  # a 0.1s poll to see it start, then 0.5s
 
 
 def test_wait_fails_when_session_ends():
@@ -172,7 +172,7 @@ def test_send_wait_waits_for_that_prompts_turn(monkeypatch):
     clock = Clock([lambda: put(A, WORKING, since=100.5), lambda: put(A, DONE, since=101.0)])
     code = commands.send(A, "go", wait_until=commands.STOPPED, now=clock.now, sleep=clock.sleep)
     assert code == 0
-    assert clock.t == 101.0
+    assert clock.t == pytest.approx(100.6)  # a 0.1s poll to see it start, then 0.5s
 
 
 def test_list_shows_branches(tmp_path, capsys):
@@ -209,16 +209,22 @@ def run_new(name, prompt, repo, clock):
 def test_new_opens_a_worktree_claude_and_prints_its_id(tmp_path, capsys):
     repo = make_repo(tmp_path / "my repo")
     clock = Clock([lambda: put(A, IDLE, str(repo))])  # its SessionStart hook runs
-    code, opened = run_new("fix-auth", "fix the login", repo, clock)
+    prompt = "don't break the regex \\d+"
+    code, opened = run_new("fix-auth", prompt, repo, clock)
     assert code == 0
     assert capsys.readouterr().out == f"{A}\n"
-    assert opened == [
-        [
-            "/bin/zsh",
-            "-lic",
-            f"cd '{repo}' && claude --worktree fix-auth 'fix the login'; exec /bin/zsh -l",
-        ]
-    ]
+    [(shell, flags, inner)] = opened
+    assert (shell, flags) == ("/bin/zsh", "-lic")
+    # iTerm rewrites backslashes in a tab's command, so the prompt travels in a file.
+    assert "\\" not in inner and "regex" not in inner
+    [prompt_file] = store.state_dir().glob("prompt-*")
+    assert prompt_file.read_text() == prompt
+    assert prompt_file.stat().st_mode & 0o077 == 0
+    quoted = shlex.quote(str(prompt_file))
+    assert inner == (
+        f"cd '{repo}' && claude --worktree fix-auth \"$(cat {quoted}; rm -f {quoted})\""
+        "; exec /bin/zsh -l"
+    )
 
 
 def test_new_without_a_prompt(tmp_path):
@@ -269,13 +275,10 @@ def test_explain_without_a_daemon_says_the_source_is_unknown(monkeypatch, capsys
         raise control.Unavailable
 
     monkeypatch.setattr(control, "request", down)
-    monkeypatch.setattr(launcher, "running", lambda: False)
+    monkeypatch.setattr(launcher, "acquire", lambda: pytest.fail("took the daemon lock"))
     assert commands.explain(A) == 0
     out = capsys.readouterr().out
-    assert "unknown" in out and "daemon isn't running" in out
-    monkeypatch.setattr(launcher, "running", lambda: True)
-    commands.explain(A)
-    assert "too old" in capsys.readouterr().out
+    assert "unknown" in out and "corral doctor" in out
 
 
 def test_explain_says_hooks_supply_the_state_when_iterm_reports_nothing(monkeypatch, capsys):
@@ -295,3 +298,29 @@ def test_explain_says_hooks_supply_the_state_when_iterm_reports_nothing(monkeypa
 
 def test_explain_unknown_target(capsys):
     assert commands.explain("nope") == 2
+
+
+def test_wait_after_needs_the_turn_to_start_first():
+    # iTerm still reporting the last turn's done gets written with a fresh since.
+    put(A, DONE, since=50.0)
+    clock = Clock([lambda: put(A, DONE, since=100.5)])
+    assert wait(A, clock, after=100.0) == 2  # never started within START_TURN
+
+
+def test_send_wait_refuses_a_busy_session(monkeypatch, capsys):
+    put(A, WORKING)
+    sent = []
+    monkeypatch.setattr(control, "request", lambda msg: sent.append(msg) or {"ok": True})
+    assert commands.send(A, "go", wait_until=commands.STOPPED) == 2
+    assert sent == [] and "corral wait" in capsys.readouterr().err
+
+
+def test_open_tab_reports_an_unreachable_iterm(monkeypatch):
+    import iterm2
+
+    def refuse(coro):
+        raise SystemExit(1)  # what iterm2 does on ConnectionRefusedError
+
+    monkeypatch.setattr(iterm2, "run_until_complete", refuse)
+    with pytest.raises(commands.CommandError, match="iTerm"):
+        commands.open_tab_next_to_you("true")

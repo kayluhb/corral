@@ -16,6 +16,7 @@ from pathlib import Path
 from corral import store
 
 TIMEOUT = 5.0
+LIMIT = 16 * 1024 * 1024  # longest request line; asyncio's default 64 KiB is a long prompt
 _PASTE_START, _PASTE_END = "\x1b[200~", "\x1b[201~"
 _UNSAFE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")  # control characters except tab and newline
 
@@ -51,7 +52,7 @@ async def serve(handle: Callable[[dict], Awaitable[dict]]) -> asyncio.Server:
     target = path()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.unlink(missing_ok=True)  # left by a daemon that didn't exit cleanly; we hold the lock
-    return await asyncio.start_unix_server(on_connect, path=str(target))
+    return await asyncio.start_unix_server(on_connect, path=str(target), limit=LIMIT)
 
 
 def request(message: dict) -> dict:

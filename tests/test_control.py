@@ -53,3 +53,17 @@ def test_paste_wraps_text_so_newlines_do_not_submit():
     assert control.paste("a\nb") == "\x1b[200~a\nb\x1b[201~"
     # Other control characters are dropped, so the text can't end the paste early or send keys.
     assert control.paste("a\x1b[201~b\x03\tc") == "\x1b[200~a[201~b\tc\x1b[201~"
+
+
+def test_long_requests_fit(short_state):
+    async def handle(message):
+        return {"ok": True, "size": len(message["text"])}
+
+    async def run():
+        server = await control.serve(handle)
+        try:
+            return await asyncio.to_thread(control.request, {"text": "é" * 100_000})
+        finally:
+            server.close()
+
+    assert asyncio.run(run()) == {"ok": True, "size": 100_000}

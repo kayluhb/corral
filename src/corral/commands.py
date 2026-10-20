@@ -14,13 +14,16 @@ import sys
 import time
 from collections.abc import Callable, Iterable
 from dataclasses import asdict
+from pathlib import Path
 
-from corral import control, git, launcher, restore, state, store
+from corral import control, git, restore, state, store
 from corral.pick import LABEL_WIDTH, age, label
 from corral.state import Session
 
 STOPPED = frozenset({state.WAITING, state.DONE, state.IDLE})  # wait's default: not working
 POLL_SECONDS = 0.5
+START_POLL_SECONDS = 0.1  # while waiting for a sent prompt's turn to start: it can be brief
+START_TURN = 10.0  # seconds for a sent prompt to start a turn
 START_TIMEOUT = 30.0  # seconds for a new tab's claude to start
 SHORT_ID = 8
 
@@ -74,25 +77,33 @@ def wait(
     now: Callable[[], float] = time.time,
     sleep: Callable[[float], None] = time.sleep,
 ) -> int:
-    """Block until the session is in one of the until states, entered at or after `after`.
+    """Block until the session is in one of the until states.
 
-    Gives up if the session ends or another claude takes over its tab.
+    With `after` (when a prompt was sent), the session must first start working at or after
+    that time, so the end of an earlier turn doesn't count. Gives up if the session ends,
+    another claude takes over its tab, or a sent prompt doesn't start a turn.
     """
     until = set(until)
     try:
         pinned = resolve(store.load_all(), target)
     except CommandError as exc:
         return _fail(str(exc))
-    deadline = None if timeout is None else now() + timeout
+    start = now()
+    deadline = None if timeout is None else start + timeout
+    started = not after
     while True:
         s = store.read(pinned.iterm_id)
         if s is None or s.claude_session_id != pinned.claude_session_id:
             return _fail(f"session {pinned.iterm_id[:SHORT_ID]} ended")
-        if s.state in until and s.since >= after:
+        if not started and s.state == state.WORKING and s.since >= after:
+            started = True
+        if started and s.state in until:
             return 0
         if deadline is not None and now() >= deadline:
             return 1
-        sleep(POLL_SECONDS)
+        if not started and now() - start >= START_TURN:
+            return _fail(f"the prompt didn't start a turn in {pinned.iterm_id[:SHORT_ID]}")
+        sleep(POLL_SECONDS if started else START_POLL_SECONDS)
 
 
 def send(
@@ -108,6 +119,9 @@ def send(
         s = resolve(store.load_all(), target)
     except CommandError as exc:
         return _fail(str(exc))
+    if wait_until is not None and s.state == state.WORKING:
+        # Its prompt would queue, and the current turn's end would look like its own.
+        return _fail(f"{state.project_name(s.cwd)} is busy; `corral wait` for it, then send")
     sent_at = now()
     try:
         reply = control.request({"op": "send", "iterm_id": s.iterm_id, "text": text})
@@ -137,7 +151,9 @@ def new(
         return _fail(f"{cwd} is not in a git repository")
     claude = f"claude --worktree {shlex.quote(name)}"
     if prompt:
-        claude += f" {shlex.quote(prompt)}"
+        # Not on the command line: iTerm rewrites backslashes in a tab's command.
+        path = shlex.quote(str(_prompt_file(prompt)))
+        claude += f' "$(cat {path}; rm -f {path})"'
     try:
         iterm_id = open_tab(restore.login_shell(f"cd {shlex.quote(cwd)} && {claude}", shell))
     except CommandError as exc:
@@ -150,6 +166,17 @@ def new(
             return 1
         sleep(POLL_SECONDS)
     return 0
+
+
+def _prompt_file(prompt: str) -> Path:
+    import tempfile
+
+    directory = store.state_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    fd, path = tempfile.mkstemp(dir=directory, prefix="prompt-", suffix=".txt")  # mode 0600
+    with os.fdopen(fd, "w") as f:
+        f.write(prompt)
+    return Path(path)
 
 
 def open_tab_next_to_you(command: str) -> str:
@@ -171,7 +198,10 @@ def open_tab_next_to_you(command: str) -> str:
         if tab is not None and tab.current_session is not None:
             result.append(tab.current_session.session_id)
 
-    iterm2.run_until_complete(run)
+    try:
+        iterm2.run_until_complete(run)
+    except (SystemExit, OSError) as exc:  # iterm2 exits on ConnectionRefusedError
+        raise CommandError("couldn't reach iTerm; is it running with the Python API on?") from exc
     if not result:
         raise CommandError("iTerm didn't open the tab")
     return result[0]
@@ -193,8 +223,7 @@ def explain(target: str, now: Callable[[], float] = time.time) -> int:
     print(f"{label(s.cwd)}  {s.iterm_id}")
     print(f"state:   {state.ICONS[s.state]} {s.state} for {age(now() - s.since)}")
     if live is None:
-        why = "is too old to ask" if launcher.running() else "isn't running"
-        print(f"source:  unknown: the corral daemon {why}, so this may be stale")
+        print("source:  unknown: the corral daemon didn't answer (see corral doctor)")
     elif live.get("iterm_status"):
         print(f"source:  iTerm's Claude Code integration (it reports {live['iterm_status']})")
     else:

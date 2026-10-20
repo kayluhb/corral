@@ -275,14 +275,25 @@ class Daemon:
     async def send(self, iterm_id: str, text: str) -> dict:
         s = store.read(iterm_id) if store.valid_id(iterm_id) else None
         session = self.app.get_session_by_id(iterm_id) if s else None
-        if session is None:
+        if s is None or session is None:
             return {"error": f"no claude session {iterm_id!r}"}
-        if s.state == state.WAITING:  # typing now could answer its permission prompt
-            return {"error": f"{state.project_name(s.cwd)} is waiting on you; answer it first"}
+        name = state.project_name(s.cwd)
+        # Typing into a permission prompt could answer it, so check iTerm as well as the
+        # state file (it may know first), and again just before pressing Enter.
+        if await self.is_waiting(iterm_id, session):
+            return {"error": f"{name} is waiting on you; answer it first"}
         await session.async_send_text(control.paste(text))
         await asyncio.sleep(SUBMIT_DELAY)
+        if await self.is_waiting(iterm_id, session):
+            return {"error": f"{name} started waiting on you; the prompt is pasted, not submitted"}
         await session.async_send_text("\r")
         return {"ok": True}
+
+    async def is_waiting(self, iterm_id: str, session: iterm2.Session) -> bool:
+        s = store.read(iterm_id)
+        if s is not None and s.state == state.WAITING:
+            return True
+        return await session.async_get_variable("status") == state.WAITING
 
     async def watch_focus(self, connection: iterm2.Connection) -> None:
         async with iterm2.FocusMonitor(connection) as monitor:

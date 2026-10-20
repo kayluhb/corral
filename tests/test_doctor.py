@@ -67,10 +67,11 @@ def test_daemon_check(monkeypatch):
         raise control.Unavailable
 
     monkeypatch.setattr(control, "request", down)
-    monkeypatch.setattr(launcher, "running", lambda: False)
+    monkeypatch.setattr(launcher, "acquire", lambda: pytest.fail("took the daemon lock"))
+    monkeypatch.setattr(doctor, "daemon_process", lambda: False)
     ok, detail = doctor.check_daemon()
     assert not ok and "next claude event" in detail
-    monkeypatch.setattr(launcher, "running", lambda: True)
+    monkeypatch.setattr(doctor, "daemon_process", lambda: True)
     ok, detail = doctor.check_daemon()
     assert not ok and "pkill" in detail  # an older daemon without the control socket
 

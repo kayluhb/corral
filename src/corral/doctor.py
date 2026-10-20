@@ -9,7 +9,7 @@ import subprocess
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from corral import control, launcher, pick
+from corral import control, pick
 
 Check = tuple[bool, str]  # (ok, detail: what's wrong and how to fix it)
 HOOKS_JQ = Path(__file__).resolve().parents[2] / "scripts" / "merge-hooks.jq"  # editable install
@@ -65,13 +65,18 @@ def check_hotkeys(pref: Callable[[str], str | None] = iterm_pref) -> Check:
     return True, ""
 
 
+def daemon_process() -> bool:
+    # Not launcher.running(): taking the lock, even briefly, can stop a daemon starting.
+    return subprocess.run(["pgrep", "-f", "corral.cli daemon"], capture_output=True).returncode == 0
+
+
 def check_daemon() -> Check:
     try:
         control.request({"op": "ping"})
         return True, ""
     except control.Unavailable:
         pass
-    if launcher.running():
+    if daemon_process():
         return False, "an older daemon is running; pkill -f 'corral.cli daemon' to restart it"
     return False, "not running; it starts with the next claude event in iTerm"
 
