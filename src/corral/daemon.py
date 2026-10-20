@@ -92,7 +92,7 @@ class Daemon:
         order = {iterm_id: i for i, iterm_id in enumerate(self.tabs)}
         self.sessions = sorted(sessions, key=lambda s: order.get(s.iterm_id, len(order)))
         if now - self.history_saved >= restore.SAVE_EVERY:
-            self.history = restore.record(self.history, self.sessions, now)
+            self.history = restore.record(self.history, self.sessions, now, self.window_of())
             restore.save(self.history)
             self.history_saved = now
 
@@ -125,6 +125,15 @@ class Daemon:
             session.session_id: n
             for window in self.app.terminal_windows
             for n, tab in enumerate(window.tabs, start=1)
+            for session in tab.sessions
+        }
+
+    def window_of(self) -> dict[str, str]:
+        """iterm_id -> the id of the window it's in."""
+        return {
+            session.session_id: window.window_id
+            for window in self.app.terminal_windows
+            for tab in window.tabs
             for session in tab.sessions
         }
 

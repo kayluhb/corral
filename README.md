@@ -106,8 +106,12 @@ Changes apply straight away. They're stored in `~/.config/corral/settings.json`,
 ## Restore
 
 Run `corral` (or `corral restore`) to reopen the claude sessions that were running when iTerm
-last quit. It lists them and asks before opening anything. It opens a new window with one tab
-per session, in the old tab order, and runs `claude --resume <id>` in each tab's own folder.
+last quit. It lists them and asks before opening anything. It opens one new window for each
+window they were in, with one tab per session in the old tab order, and runs
+`claude --resume <id>` in each tab's own folder.
+
+Run `corral restore --pick` to choose from every claude session of the last week that isn't
+running now, newest first, in fzf. Tab selects several; Enter opens them without asking again.
 
 The daemon keeps a history of claude sessions in `~/.local/state/corral/restore/history.json`
 and forgets entries after a week. "Last time" means the sessions that stopped within 30 seconds

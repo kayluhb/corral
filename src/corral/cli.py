@@ -35,7 +35,8 @@ def main() -> None:
     p = sub.add_parser("explain", help="show what corral knows about a session, and from where")
     p.add_argument("target", help=target)
     sub.add_parser("doctor", help="check corral's hooks, iTerm settings and daemon")
-    sub.add_parser("restore", help="reopen the claude sessions that were running last time")
+    p = sub.add_parser("restore", help="reopen the claude sessions that were running last time")
+    p.add_argument("--pick", action="store_true", help="choose from the last week's sessions")
     sub.add_parser("settings", help="change corral's settings (arrow-key menu)")
     sub.add_parser("setup", help="add the corral status bar item and hotkeys to iTerm")
     args = parser.parse_args()
@@ -64,7 +65,7 @@ def main() -> None:
     if args.command == "settings":
         sys.exit(settings.menu())
     if args.command in (None, "restore"):
-        sys.exit(restore.run())
+        sys.exit(restore.run(choose_from_history=getattr(args, "pick", False)))
     # iterm2 is only needed by these two; keep `pick` stdlib-only and fast.
     if args.command == "daemon":
         from corral import daemon
