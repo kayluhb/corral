@@ -64,6 +64,27 @@ Click the corral status bar item to open a list of this window's claude tabs; cl
 
 <img src="docs/popover.png" alt="The status bar popover listing tabs 1 to 5 with their state" width="480">
 
+## Commands
+
+Scripts, and other claude sessions, can watch and drive sessions from a shell:
+
+| Command | Does |
+|---|---|
+| `corral list [--json]` | List sessions, most urgent first, with a short id for each. |
+| `corral wait <session> [--until <state>] [--timeout <s>]` | Wait until the session stops working: waiting, done or idle. `--until` waits for a given state instead; repeat it for several. |
+| `corral send <session> <prompt> [--wait] [--timeout <s>]` | Type the prompt into the session and press Enter. `-` reads it from stdin. `--wait` then waits until that turn stops. |
+
+`<session>` is an id from `corral list`, a unique start of one, or a project name that only one
+session has. `send` refuses a session that's waiting on you, so it can't answer a permission
+prompt. It needs the daemon running.
+
+Exit codes: 0 when done, 1 when `--timeout` runs out, 2 for an error: no such session, the
+session ended or a new claude took over its tab, or no daemon. For example,
+`corral send lasso "run the tests" --wait && say "lasso is done"`.
+
+`wait` sees done turn into idle once you look at the tab, so `--until done` can miss a session you're
+watching. The default covers both.
+
 ## Settings
 
 Run `corral settings` for an arrow-key menu (↑↓ to move, Enter or Space to change, q to quit).

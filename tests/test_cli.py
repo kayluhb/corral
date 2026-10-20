@@ -1,6 +1,6 @@
 import sys
 
-from corral import cli, restore
+from corral import cli, commands, restore
 
 
 def test_bare_corral_runs_restore(monkeypatch):
@@ -12,3 +12,33 @@ def test_bare_corral_runs_restore(monkeypatch):
     except SystemExit as exit:
         assert exit.code == 0
     assert calls == [1]
+
+
+def run_cli(monkeypatch, *argv):
+    monkeypatch.setattr(sys, "argv", ["corral", *argv])
+    try:
+        cli.main()
+    except SystemExit as exit:
+        return exit.code
+
+
+def test_list_wait_and_send_reach_their_commands(monkeypatch):
+    calls = []
+    monkeypatch.setattr(commands, "list_sessions", lambda as_json: calls.append(as_json) or 0)
+    monkeypatch.setattr(commands, "wait", lambda *a, **kw: calls.append((a, kw)) or 0)
+    monkeypatch.setattr(commands, "send", lambda *a, **kw: calls.append((a, kw)) or 0)
+    assert run_cli(monkeypatch, "list", "--json") == 0
+    assert run_cli(monkeypatch, "wait", "lasso", "--until", "done", "--timeout", "5") == 0
+    assert run_cli(monkeypatch, "send", "lasso", "run", "the tests", "--wait") == 0
+    assert calls == [
+        True,
+        (("lasso",), {"until": {"done"}, "timeout": 5.0}),
+        (("lasso", "run the tests"), {"wait_until": commands.STOPPED, "timeout": None}),
+    ]
+
+
+def test_wait_defaults_to_until_stopped(monkeypatch):
+    calls = []
+    monkeypatch.setattr(commands, "wait", lambda *a, **kw: calls.append(kw) or 0)
+    run_cli(monkeypatch, "wait", "lasso")
+    assert calls == [{"until": commands.STOPPED, "timeout": None}]

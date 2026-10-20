@@ -13,10 +13,11 @@ from pathlib import Path
 
 import iterm2
 
-from corral import launcher, popover, restore, settings, state, store
+from corral import control, launcher, popover, restore, settings, state, store
 
 POLL_SECONDS = 0.5
 PICK_TIMEOUT = 600
+SUBMIT_DELAY = 0.1  # seconds between a sent prompt's paste and its Enter, so claude takes both
 CORRAL_BIN = os.environ.get("CORRAL_BIN", os.path.expanduser("~/.local/bin/corral"))
 COLORS = {
     state.WAITING: iterm2.Color(230, 60, 60),
@@ -250,6 +251,22 @@ class Daemon:
         if chosen:
             await self.focus(chosen)
 
+    async def control(self, message: dict) -> dict:
+        """Requests from `corral send` and friends, over the control socket."""
+        if message.get("op") != "send":
+            return {"error": f"unknown request {message.get('op')!r}"}
+        iterm_id = str(message.get("iterm_id", ""))
+        s = store.read(iterm_id) if store.valid_id(iterm_id) else None
+        session = self.app.get_session_by_id(iterm_id) if s else None
+        if session is None:
+            return {"error": f"no claude session {iterm_id!r}"}
+        if s.state == state.WAITING:  # typing now could answer its permission prompt
+            return {"error": f"{state.project_name(s.cwd)} is waiting on you; answer it first"}
+        await session.async_send_text(control.paste(str(message.get("text", ""))))
+        await asyncio.sleep(SUBMIT_DELAY)
+        await session.async_send_text("\r")
+        return {"ok": True}
+
     async def watch_focus(self, connection: iterm2.Connection) -> None:
         async with iterm2.FocusMonitor(connection) as monitor:
             while True:
@@ -320,6 +337,10 @@ async def main(connection: iterm2.Connection) -> None:
         await daemon.pick(session_id)
 
     links = await popover.serve(daemon.focus)
+    try:
+        control_server = await control.serve(daemon.control)  # noqa: F841 - kept alive with main
+    except OSError as exc:  # e.g. a CORRAL_STATE_DIR too long for a socket path
+        print(f"corral: no control socket, `corral send` won't work: {exc!r}")
 
     async def on_click(session_id):
         group = daemon.settings.group

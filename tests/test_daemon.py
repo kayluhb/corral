@@ -13,6 +13,7 @@ class FakeSession:
         self.fail = fail
         self.colors: list[bool] = []  # use_tab_color values applied, in order
         self.injected: list[bytes] = []
+        self.typed: list[str] = []  # async_send_text calls, in order
         self.status = None  # iTerm's Claude Code integration status; None when it reports none
 
     async def async_get_variable(self, name):
@@ -26,6 +27,9 @@ class FakeSession:
 
     async def async_inject(self, data):
         self.injected.append(data)
+
+    async def async_send_text(self, text):
+        self.typed.append(text)
 
     async def async_split_pane(self, **kwargs):
         raise AssertionError("opened a second picker")
@@ -362,3 +366,35 @@ def test_iterm_status_change_restarts_since():
     a.status = WAITING
     tick(d)
     assert store.read("A").since > 1.0
+
+
+def control(d, message):
+    return asyncio.run(d.control(message))
+
+
+def test_send_types_the_prompt_as_a_paste_then_enter(monkeypatch):
+    monkeypatch.setattr(daemon, "SUBMIT_DELAY", 0)
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", DONE)
+    assert control(d, {"op": "send", "iterm_id": "A", "text": "run\ntests"}) == {"ok": True}
+    assert a.typed == ["\x1b[200~run\ntests\x1b[201~", "\r"]
+
+
+def test_send_refuses_a_session_waiting_on_you():
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", WAITING)
+    assert "waiting" in control(d, {"op": "send", "iterm_id": "A", "text": "1"})["error"]
+    assert a.typed == []
+
+
+def test_send_refuses_unknown_or_closed_sessions():
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    assert "no claude session" in control(d, {"op": "send", "iterm_id": "A", "text": "x"})["error"]
+    put("GONE", IDLE)  # state file left behind, tab already closed
+    assert (
+        "no claude session" in control(d, {"op": "send", "iterm_id": "GONE", "text": "x"})["error"]
+    )
+    assert "unknown" in control(d, {"op": "nope"})["error"]
