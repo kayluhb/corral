@@ -1,7 +1,7 @@
 """The daemon's control socket, so commands like `corral send` can act through iTerm.
 
-One JSON object per line each way over a Unix socket in the state dir. The state dir is
-private to you, so the socket needs no token (unlike the popover's localhost server).
+One JSON object per line each way over a Unix socket in the state dir. The socket is mode 0600,
+so only you can connect and it needs no token (unlike the popover's localhost server).
 """
 
 from __future__ import annotations
@@ -52,7 +52,9 @@ async def serve(handle: Callable[[dict], Awaitable[dict]]) -> asyncio.Server:
     target = path()
     target.parent.mkdir(parents=True, exist_ok=True)
     target.unlink(missing_ok=True)  # left by a daemon that didn't exit cleanly; we hold the lock
-    return await asyncio.start_unix_server(on_connect, path=str(target), limit=LIMIT)
+    server = await asyncio.start_unix_server(on_connect, path=str(target), limit=LIMIT)
+    target.chmod(0o600)  # not left to the umask: anyone who connects can type into claude
+    return server
 
 
 def request(message: dict) -> dict:

@@ -64,3 +64,13 @@ def test_doctor_and_explain(monkeypatch):
     assert run_cli(monkeypatch, "doctor") == 1
     assert run_cli(monkeypatch, "explain", "lasso") == 0
     assert calls == ["doctor", "lasso"]
+
+
+def test_send_dash_reads_the_prompt_from_stdin(monkeypatch):
+    import io
+
+    calls = []
+    monkeypatch.setattr(commands, "send", lambda *a, **kw: calls.append(a) or 0)
+    monkeypatch.setattr(sys, "stdin", io.StringIO("line one\nline two\n"))
+    assert run_cli(monkeypatch, "send", "lasso", "-") == 0
+    assert calls == [("lasso", "line one\nline two\n")]

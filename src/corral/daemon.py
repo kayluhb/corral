@@ -254,12 +254,13 @@ class Daemon:
     async def control(self, message: dict) -> dict:
         """Requests from `corral send`, `doctor` and `explain`, over the control socket."""
         op = message.get("op")
+        iterm_id = str(message.get("iterm_id", ""))
         if op == "ping":
             return {"ok": True}
         if op == "explain":
-            return self.explain(str(message.get("iterm_id", "")))
+            return self.explain(iterm_id)
         if op == "send":
-            return await self.send(str(message.get("iterm_id", "")), str(message.get("text", "")))
+            return await self.send(iterm_id, str(message.get("text", "")))
         return {"error": f"unknown request {op!r}"}
 
     def explain(self, iterm_id: str) -> dict:

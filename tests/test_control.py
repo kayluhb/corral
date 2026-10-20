@@ -44,6 +44,21 @@ def test_handler_errors_come_back_as_errors(short_state):
     assert "boom" in asyncio.run(run())["error"]
 
 
+def test_socket_is_private_whatever_the_umask(short_state):
+    import os
+
+    async def run():
+        old = os.umask(0)
+        try:
+            server = await control.serve(lambda message: None)
+        finally:
+            os.umask(old)
+        server.close()
+        return control.path().stat().st_mode & 0o777
+
+    assert asyncio.run(run()) == 0o600
+
+
 def test_request_without_a_daemon_raises(short_state):
     with pytest.raises(control.Unavailable):
         control.request({"op": "ping"})

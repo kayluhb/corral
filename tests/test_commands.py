@@ -64,6 +64,13 @@ def test_resolve_rejects_ambiguous_and_unknown():
         commands.resolve(sessions, "nope")
 
 
+def test_resolve_a_hex_like_project_name_is_ambiguous_with_an_id_prefix():
+    # "bbbb" is a project here, but also the start of B's id: don't silently pick either.
+    sessions = [put(A, IDLE, "/p/bbbb"), put(B, IDLE, "/p/lasso")]
+    with pytest.raises(commands.CommandError, match="matches 2 sessions"):
+        commands.resolve(sessions, "bbbb")
+
+
 # list
 
 
@@ -86,7 +93,8 @@ def test_list_json_has_full_ids_and_project(capsys):
 
 def test_list_when_empty(capsys):
     assert commands.list_sessions(as_json=False) == 0
-    assert "no claude sessions" in capsys.readouterr().out
+    captured = capsys.readouterr()
+    assert captured.out == "" and "no claude sessions" in captured.err  # stdout stays parseable
     commands.list_sessions(as_json=True)
     assert json.loads(capsys.readouterr().out) == []
 
@@ -340,3 +348,45 @@ def test_new_with_a_prompt_returns_once_its_turn_starts(tmp_path):
     code, _ = run_new("x", "go", repo, clock)
     assert code == 0
     assert store.read(A).state == WORKING and clock.t >= 100.3
+
+
+def test_new_removes_the_prompt_file_when_the_tab_does_not_open(tmp_path, capsys):
+    repo = make_repo(tmp_path / "proj")
+
+    def fail(command):
+        raise commands.CommandError("iTerm didn't open the tab")
+
+    code = commands.new("x", "go", str(repo), "/bin/zsh", fail, time.time, time.sleep)
+    assert code == 2 and "didn't open" in capsys.readouterr().err
+    assert list(store.state_dir().glob("prompt-*")) == []
+
+
+def test_new_with_a_prompt_fails_when_its_turn_never_starts(tmp_path, capsys):
+    repo = make_repo(tmp_path / "proj")
+    code, _ = run_new("x", "go", repo, Clock([lambda: put(A, IDLE, str(repo), since=100.1)]))
+    assert code == 2 and "didn't start a turn" in capsys.readouterr().err
+
+
+def test_explain_reports_a_daemon_error(monkeypatch, capsys):
+    put(A, WORKING)
+    monkeypatch.setattr(control, "request", lambda msg: {"error": "RuntimeError('boom')"})
+    assert commands.explain(A) == 0
+    out = capsys.readouterr().out
+    assert "daemon failed: RuntimeError('boom')" in out and "tab:" not in out
+
+
+def test_explain_a_closed_tab(monkeypatch, capsys):
+    put(A, DONE)
+    reply = {"ok": True, "tab_open": False, "iterm_status": None, "tab_colour": DONE}
+    monkeypatch.setattr(control, "request", lambda msg: reply)
+    commands.explain(A)
+    assert "tab:     closed (the state file is left over); corral gave it green" in (
+        capsys.readouterr().out
+    )
+
+
+def test_explain_strips_terminal_escapes_from_the_folder(monkeypatch, capsys):
+    put(A, IDLE, cwd="/p/evil\x1b]0;pwned\x07")
+    monkeypatch.setattr(control, "request", lambda msg: {"ok": True})
+    commands.explain(A)
+    assert "\x1b" not in capsys.readouterr().out

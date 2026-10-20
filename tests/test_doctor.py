@@ -45,6 +45,14 @@ def test_hooks_check_without_settings_file(tmp_path):
     assert not ok and "missing.json" in detail
 
 
+def test_hooks_check_with_a_malformed_settings_file(tmp_path):
+    path = tmp_path / "settings.json"
+    for text in ("not json", '{"hooks": []}', '{"hooks": {"Stop": ["x"]}}'):
+        path.write_text(text)
+        ok, detail = doctor.check_hooks(path, ["Stop"])
+        assert not ok and "settings.json" in detail
+
+
 def test_python_api_check():
     assert doctor.check_python_api(lambda key: "1")[0]
     ok, detail = doctor.check_python_api(lambda key: None)

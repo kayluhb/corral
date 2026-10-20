@@ -35,17 +35,16 @@ def iterm_pref(key: str) -> str | None:
 
 
 def check_hooks(path: Path, events: Iterable[str]) -> Check:
-    try:
-        hooks = json.loads(path.read_text()).get("hooks", {})
-    except (OSError, ValueError, AttributeError):
-        return False, f"can't read {path}; run ./install.sh"
-
     def has_corral(event: str) -> bool:
         entries = hooks.get(event) or []
-        commands = (h.get("command", "") for e in entries for h in e.get("hooks", []))
-        return any(c.endswith("corral-hook") for c in commands)
+        commands = (hook.get("command", "") for entry in entries for hook in entry.get("hooks", []))
+        return any(command.endswith("corral-hook") for command in commands)
 
-    missing = [e for e in events if not has_corral(e)]
+    try:
+        hooks = json.loads(path.read_text()).get("hooks", {})
+        missing = [event for event in events if not has_corral(event)]
+    except (OSError, ValueError, AttributeError, KeyError, TypeError):  # also hand-edited oddities
+        return False, f"can't read {path}; run ./install.sh"
     if missing:
         return False, f"no corral hook for {', '.join(missing)}; run ./install.sh"
     return True, ""
@@ -59,7 +58,7 @@ def check_python_api(pref: Callable[[str], str | None] = iterm_pref) -> Check:
 
 def check_hotkeys(pref: Callable[[str], str | None] = iterm_pref) -> Check:
     keymap = pref("GlobalKeyMap") or ""
-    missing = [f for f in HOTKEY_FUNCTIONS if f not in keymap]
+    missing = [function for function in HOTKEY_FUNCTIONS if function not in keymap]
     if missing:
         return False, f"not bound: {', '.join(missing)}; run `corral setup`"
     return True, ""

@@ -26,6 +26,7 @@ START_POLL_SECONDS = 0.1  # while waiting for a sent prompt's turn to start: it 
 START_TURN = 10.0  # seconds for a sent prompt to start a turn
 START_TIMEOUT = 30.0  # seconds for a new tab's claude to start
 SHORT_ID = 8
+PATH_LIMIT = 1024  # explain cleans folders (no terminal escapes) but keeps them whole
 
 
 class CommandError(Exception):
@@ -33,13 +34,20 @@ class CommandError(Exception):
 
 
 def resolve(sessions: Iterable[Session], target: str) -> Session:
-    """The one session target names: an iTerm id, a prefix of one, or a project name."""
+    """The one session target names: an iTerm id, a prefix of one, or a project name.
+
+    A prefix and a project name count together, so a hex-like project name ("cafe") can't
+    silently pick another session whose id starts with it.
+    """
     sessions = list(sessions)
     key = target.lower()
     for matches in (
         [s for s in sessions if s.iterm_id.lower() == key],
-        [s for s in sessions if s.iterm_id.lower().startswith(key)],
-        [s for s in sessions if state.project_name(s.cwd) == target],
+        [
+            s
+            for s in sessions
+            if s.iterm_id.lower().startswith(key) or state.project_name(s.cwd) == target
+        ],
     ):
         if len(matches) == 1:
             return matches[0]
@@ -59,7 +67,7 @@ def list_sessions(as_json: bool, now: Callable[[], float] = time.time) -> int:
         print(json.dumps(rows, indent=2))
         return 0
     if not sessions:
-        print("corral: no claude sessions")
+        print("corral: no claude sessions", file=sys.stderr)
     t = now()
     for s in sessions:
         project = state.clean(label(s.cwd), LABEL_WIDTH)
@@ -153,12 +161,15 @@ def new(
     claude = f"claude --worktree {shlex.quote(name)}"
     if prompt:
         # Not on the command line: iTerm rewrites backslashes in a tab's command.
-        path = shlex.quote(str(_prompt_file(prompt)))
+        prompt_file = _prompt_file(prompt)
+        path = shlex.quote(str(prompt_file))
         claude += f' "$(cat {path}; rm -f {path})"'
     opened_at = now()
     try:
         iterm_id = open_tab(restore.login_shell(f"cd {shlex.quote(cwd)} && {claude}", shell))
     except CommandError as exc:
+        if prompt:  # the tab's shell would have removed it
+            prompt_file.unlink(missing_ok=True)
         return _fail(str(exc))
     print(iterm_id)  # printed either way, so a script can still find the tab
     deadline = now() + START_TIMEOUT
@@ -178,8 +189,8 @@ def _prompt_file(prompt: str) -> Path:
     directory = store.state_dir()
     directory.mkdir(parents=True, exist_ok=True)
     fd, path = tempfile.mkstemp(dir=directory, prefix="prompt-", suffix=".txt")  # mode 0600
-    with os.fdopen(fd, "w") as f:
-        f.write(prompt)
+    with os.fdopen(fd, "w") as prompt_file:
+        prompt_file.write(prompt)
     return Path(path)
 
 
@@ -224,9 +235,14 @@ def explain(target: str, now: Callable[[], float] = time.time) -> int:
         live = control.request({"op": "explain", "iterm_id": s.iterm_id})
     except control.Unavailable:
         live = None
-    print(f"{label(s.cwd)}  {s.iterm_id}")
+    error = live.get("error") if live else None
+    if error:
+        live = None
+    print(f"{state.clean(label(s.cwd), PATH_LIMIT)}  {s.iterm_id}")
     print(f"state:   {state.ICONS[s.state]} {s.state} for {age(now() - s.since)}")
-    if live is None:
+    if error:
+        print(f"source:  unknown: the corral daemon failed: {error}")
+    elif live is None:
         print("source:  unknown: the corral daemon didn't answer (see corral doctor)")
     elif live.get("iterm_status"):
         print(f"source:  iTerm's Claude Code integration (it reports {live['iterm_status']})")
@@ -237,7 +253,7 @@ def explain(target: str, now: Callable[[], float] = time.time) -> int:
         focus = ", you're looking at it" if live.get("focused") else ""
         colour = COLOUR_NAMES.get(live.get("tab_colour"), "no colour")
         print(f"tab:     {tab}{focus}; corral gave it {colour}")
-    print(f"folder:  {s.cwd}")
+    print(f"folder:  {state.clean(s.cwd, PATH_LIMIT)}")
     print(f"resume:  claude --resume {s.claude_session_id}")
     if s.last_prompt:
         print(f"prompt:  {s.last_prompt}")
