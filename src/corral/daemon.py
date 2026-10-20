@@ -292,6 +292,8 @@ class Daemon:
         # state file (it may know first), and again just before pressing Enter.
         if await self.is_waiting(iterm_id, session):
             return {"error": f"{name} is waiting on you; answer it first"}
+        if await self.has_draft(session):  # Enter would submit your draft with the text
+            return {"error": f"{name} has a half-typed prompt; submit or clear it first"}
         await session.async_send_text(control.paste(text))
         await asyncio.sleep(SUBMIT_DELAY)
         if await self.is_waiting(iterm_id, session):
@@ -304,6 +306,11 @@ class Daemon:
         if s is not None and s.state == state.WAITING:
             return True
         return await session.async_get_variable("status") == state.WAITING
+
+    async def has_draft(self, session: iterm2.Session) -> bool:
+        contents = await session.async_get_screen_contents()
+        lines = [screen_cells(contents.line(i)) for i in range(contents.number_of_lines)]
+        return bool(control.draft(lines))
 
     async def watch_focus(self, connection: iterm2.Connection) -> None:
         async with iterm2.FocusMonitor(connection) as monitor:
@@ -331,6 +338,17 @@ class Daemon:
                         future.set_result(None)
                 except Exception as exc:
                     print(f"corral termination error: {exc!r}")
+
+
+def screen_cells(line: iterm2.LineContents) -> list[control.Cell]:
+    cells = []
+    for x in range(len(line.string)):  # never fewer characters than cells
+        style = line.style_at(x)
+        try:
+            cells.append((line.string_at(x), bool(style and style.faint)))
+        except IndexError:  # past the last cell
+            break
+    return cells
 
 
 def json_quote(text: str) -> str:

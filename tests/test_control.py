@@ -84,3 +84,39 @@ def test_long_requests_fit(short_state):
             server.close()
 
     assert asyncio.run(run()) == {"ok": True, "size": 100_000}
+
+
+def screen(*lines):
+    """Lines of cells; text inside [brackets] is faint."""
+    out = []
+    for line in lines:
+        cells, faint = [], False
+        for ch in line:
+            if ch in "[]":
+                faint = ch == "["
+            else:
+                cells.append((ch, faint))
+        out.append(cells)
+    return out
+
+
+RULE = "─" * 20
+
+
+def test_draft_is_what_you_typed_into_the_input_box():
+    lines = screen("⏺ Done.", RULE, "❯\xa0half a pro", "  mpt, two lines", RULE, "  ~/p main")
+    assert control.draft(lines) == "half a pro  mpt, two lines"
+
+
+def test_no_draft_in_an_empty_box_or_one_showing_a_faint_suggestion():
+    assert control.draft(screen(RULE, "❯\xa0", RULE)) == ""
+    assert control.draft(screen(RULE, '❯\xa0[Try "refactor x.py"]', RULE)) == ""
+
+
+def test_draft_ignores_earlier_prompts_in_the_transcript():
+    lines = screen("❯\xa0an old prompt", "⏺ Sure.", RULE, "❯\xa0", RULE)
+    assert control.draft(lines) == ""
+
+
+def test_no_input_box_on_screen_means_no_draft():
+    assert control.draft(screen("Select model", "❯\xa01. Opus")) == ""

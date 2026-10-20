@@ -16,6 +16,10 @@ class FakeSession:
         self.typed: list[str] = []  # async_send_text calls, in order
         self.on_type = None  # called after each async_send_text
         self.status = None  # iTerm's Claude Code integration status; None when it reports none
+        self.screen = ["─" * 10, "❯\xa0", "─" * 10]  # claude's empty input box
+
+    async def async_get_screen_contents(self):
+        return FakeScreen(self.screen)
 
     async def async_get_variable(self, name):
         assert name == "status"
@@ -39,6 +43,26 @@ class FakeSession:
 
     async def async_close(self, force=False):
         self.closed = True
+
+
+class FakeLine:
+    def __init__(self, text):
+        self.string = text
+
+    def string_at(self, x):
+        return self.string[x]
+
+    def style_at(self, x):
+        return None
+
+
+class FakeScreen:
+    def __init__(self, lines):
+        self.number_of_lines = len(lines)
+        self.lines = [FakeLine(text) for text in lines]
+
+    def line(self, i):
+        return self.lines[i]
 
 
 class FakeTab:
@@ -466,3 +490,12 @@ def test_send_holds_back_enter_if_a_prompt_appears_while_pasting(monkeypatch):
     reply = control(d, {"op": "send", "iterm_id": "A", "text": "go"})
     assert "waiting" in reply["error"] and "not submitted" in reply["error"]
     assert a.typed == ["\x1b[200~go\x1b[201~"]  # no Enter
+
+
+def test_send_refuses_a_session_with_a_half_typed_prompt():
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", DONE)
+    a.screen = ["─" * 10, "❯\xa0fix the", "─" * 10]
+    assert "half-typed" in control(d, {"op": "send", "iterm_id": "A", "text": "go"})["error"]
+    assert a.typed == []
