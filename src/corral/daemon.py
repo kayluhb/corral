@@ -183,7 +183,10 @@ class Daemon:
         self.iterm_status[s.iterm_id] = status
         # iTerm stays done until the next prompt; keep the idle corral set once you looked.
         seen = status == state.DONE and s.state == state.IDLE
-        if s.state == status or (seen and not changed):
+        # Only you end a wait, so a hook that has left waiting is newer than an unchanged
+        # iTerm waiting: iTerm hasn't caught up with the same event yet.
+        answered = status == state.WAITING and s.state != state.WAITING
+        if s.state == status or ((seen or answered) and not changed):
             return s
         s = replace(s, state=status, since=now)
         store.write(s)
