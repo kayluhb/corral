@@ -252,17 +252,34 @@ class Daemon:
             await self.focus(chosen)
 
     async def control(self, message: dict) -> dict:
-        """Requests from `corral send` and friends, over the control socket."""
-        if message.get("op") != "send":
-            return {"error": f"unknown request {message.get('op')!r}"}
-        iterm_id = str(message.get("iterm_id", ""))
+        """Requests from `corral send`, `doctor` and `explain`, over the control socket."""
+        op = message.get("op")
+        if op == "ping":
+            return {"ok": True}
+        if op == "explain":
+            return self.explain(str(message.get("iterm_id", "")))
+        if op == "send":
+            return await self.send(str(message.get("iterm_id", "")), str(message.get("text", "")))
+        return {"error": f"unknown request {op!r}"}
+
+    def explain(self, iterm_id: str) -> dict:
+        """What the daemon knows about a session, as of its last tick."""
+        return {
+            "ok": True,
+            "tab_open": self.app.get_session_by_id(iterm_id) is not None,
+            "iterm_status": self.iterm_status.get(iterm_id),
+            "focused": iterm_id == self.active_id,
+            "tab_colour": self.painted.get(iterm_id),
+        }
+
+    async def send(self, iterm_id: str, text: str) -> dict:
         s = store.read(iterm_id) if store.valid_id(iterm_id) else None
         session = self.app.get_session_by_id(iterm_id) if s else None
         if session is None:
             return {"error": f"no claude session {iterm_id!r}"}
         if s.state == state.WAITING:  # typing now could answer its permission prompt
             return {"error": f"{state.project_name(s.cwd)} is waiting on you; answer it first"}
-        await session.async_send_text(control.paste(str(message.get("text", ""))))
+        await session.async_send_text(control.paste(text))
         await asyncio.sleep(SUBMIT_DELAY)
         await session.async_send_text("\r")
         return {"ok": True}

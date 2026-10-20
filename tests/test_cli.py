@@ -53,3 +53,14 @@ def test_new_runs_in_the_current_folder(monkeypatch, tmp_path):
     assert calls == [
         ("fix-auth", "fix the login", str(tmp_path), "/bin/bash", commands.open_tab_next_to_you)
     ]
+
+
+def test_doctor_and_explain(monkeypatch):
+    from corral import doctor
+
+    calls = []
+    monkeypatch.setattr(doctor, "run", lambda: calls.append("doctor") or 1)
+    monkeypatch.setattr(commands, "explain", lambda target: calls.append(target) or 0)
+    assert run_cli(monkeypatch, "doctor") == 1
+    assert run_cli(monkeypatch, "explain", "lasso") == 0
+    assert calls == ["doctor", "lasso"]

@@ -32,6 +32,9 @@ def main() -> None:
     p = sub.add_parser("new", help="open a tab with claude in a new git worktree; prints its id")
     p.add_argument("name", help="the worktree's name (claude --worktree <name>)")
     p.add_argument("prompt", nargs="*", help="a first prompt for it")
+    p = sub.add_parser("explain", help="show what corral knows about a session, and from where")
+    p.add_argument("target", help=target)
+    sub.add_parser("doctor", help="check corral's hooks, iTerm settings and daemon")
     sub.add_parser("restore", help="reopen the claude sessions that were running last time")
     sub.add_parser("settings", help="change corral's settings (arrow-key menu)")
     sub.add_parser("setup", help="add the corral status bar item and hotkeys to iTerm")
@@ -52,6 +55,12 @@ def main() -> None:
         shell = os.environ.get("SHELL", "/bin/zsh")
         prompt = " ".join(args.prompt)
         sys.exit(commands.new(args.name, prompt, os.getcwd(), shell, commands.open_tab_next_to_you))
+    if args.command == "explain":
+        sys.exit(commands.explain(args.target))
+    if args.command == "doctor":
+        from corral import doctor
+
+        sys.exit(doctor.run())
     if args.command == "settings":
         sys.exit(settings.menu())
     if args.command in (None, "restore"):

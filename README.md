@@ -75,6 +75,7 @@ Scripts, and other claude sessions, can watch and drive sessions from a shell:
 | `corral wait <session> [--until <state>] [--timeout <s>]` | Wait until the session stops working: waiting, done or idle. `--until` waits for a given state instead; repeat it for several. |
 | `corral send <session> <prompt> [--wait] [--timeout <s>]` | Type the prompt into the session and press Enter. `-` reads it from stdin. `--wait` then waits until that turn stops. |
 | `corral new <name> [prompt]` | Open a tab next to yours running `claude --worktree <name> [prompt]` in this repo, and print its id once claude has started. |
+| `corral explain <session>` | Show what corral knows about a session: its state and for how long, whether iTerm or corral's hooks supplied it, its tab, and the command to resume it. |
 
 `<session>` is an id from `corral list`, a unique start of one, or a project name that only one
 session has. `send` refuses a session that's waiting on you, so it can't answer a permission
@@ -162,6 +163,12 @@ rm -rf ~/.local/state/corral
 Remove the corral status bar item and the three hotkeys in iTerm2 Settings.
 Then remove the hook entries whose command is `corral-hook` from `~/.claude/settings.json`,
 or restore `settings.json.corral-bak`.
+
+## Troubleshooting
+
+Run `corral doctor`. It checks the Claude Code hooks, the iTerm2 Python API and hotkeys, the
+daemon and fzf, and says how to fix anything that's missing. For one session that looks wrong,
+run `corral explain <session>`.
 
 ## Known limitations
 

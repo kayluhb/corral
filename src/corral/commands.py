@@ -1,4 +1,4 @@
-"""`corral list`, `wait`, `send` and `new`: drive sessions from a shell or another claude.
+"""`corral list`, `wait`, `send`, `new` and `explain`: sessions from a shell or another claude.
 
 list and wait read the state files directly; send needs the daemon, which types through iTerm;
 new opens an iTerm tab itself, as `corral restore` does.
@@ -15,7 +15,7 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import asdict
 
-from corral import control, git, restore, state, store
+from corral import control, git, launcher, restore, state, store
 from corral.pick import LABEL_WIDTH, age, label
 from corral.state import Session
 
@@ -175,6 +175,40 @@ def open_tab_next_to_you(command: str) -> str:
     if not result:
         raise CommandError("iTerm didn't open the tab")
     return result[0]
+
+
+COLOUR_NAMES = {state.WAITING: "red", state.DONE: "green"}
+
+
+def explain(target: str, now: Callable[[], float] = time.time) -> int:
+    """Print what corral knows about a session and where its state came from."""
+    try:
+        s = resolve(store.load_all(), target)
+    except CommandError as exc:
+        return _fail(str(exc))
+    try:
+        live = control.request({"op": "explain", "iterm_id": s.iterm_id})
+    except control.Unavailable:
+        live = None
+    print(f"{label(s.cwd)}  {s.iterm_id}")
+    print(f"state:   {state.ICONS[s.state]} {s.state} for {age(now() - s.since)}")
+    if live is None:
+        why = "is too old to ask" if launcher.running() else "isn't running"
+        print(f"source:  unknown: the corral daemon {why}, so this may be stale")
+    elif live.get("iterm_status"):
+        print(f"source:  iTerm's Claude Code integration (it reports {live['iterm_status']})")
+    else:
+        print("source:  corral's hooks (iTerm's Claude Code integration reports nothing here)")
+    if live is not None:
+        tab = "open" if live.get("tab_open") else "closed (the state file is left over)"
+        focus = ", you're looking at it" if live.get("focused") else ""
+        colour = COLOUR_NAMES.get(live.get("tab_colour"), "no colour")
+        print(f"tab:     {tab}{focus}; corral gave it {colour}")
+    print(f"folder:  {s.cwd}")
+    print(f"resume:  claude --resume {s.claude_session_id}")
+    if s.last_prompt:
+        print(f"prompt:  {s.last_prompt}")
+    return 0
 
 
 def _fail(message: str) -> int:

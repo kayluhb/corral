@@ -398,3 +398,33 @@ def test_send_refuses_unknown_or_closed_sessions():
         "no claude session" in control(d, {"op": "send", "iterm_id": "GONE", "text": "x"})["error"]
     )
     assert "unknown" in control(d, {"op": "nope"})["error"]
+
+
+def test_ping():
+    d = daemon.Daemon(FakeApp([FakeSession("A")], current="A"))
+    assert control(d, {"op": "ping"}) == {"ok": True}
+
+
+def test_explain_reports_what_iterm_says_about_the_session():
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="B"))
+    put("A", WAITING)
+    a.status = WAITING
+    tick(d)
+    assert control(d, {"op": "explain", "iterm_id": "A"}) == {
+        "ok": True,
+        "tab_open": True,
+        "iterm_status": WAITING,
+        "focused": False,
+        "tab_colour": WAITING,
+    }
+
+
+def test_explain_a_session_iterm_reports_nothing_for():
+    a = FakeSession("A")
+    d = daemon.Daemon(FakeApp([a], current="A"))
+    put("A", WORKING)
+    tick(d)
+    reply = control(d, {"op": "explain", "iterm_id": "A"})
+    assert reply["iterm_status"] is None and reply["focused"] is True
+    assert control(d, {"op": "explain", "iterm_id": "GONE"})["tab_open"] is False

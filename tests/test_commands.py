@@ -4,7 +4,7 @@ import time
 
 import pytest
 
-from corral import commands, control, store
+from corral import commands, control, launcher, store
 from corral.state import DONE, IDLE, WAITING, WORKING, Session
 
 A = "AAAA1111-0000-0000-0000-000000000000"
@@ -239,3 +239,59 @@ def test_new_still_prints_the_id_when_claude_is_slow_to_start(tmp_path, capsys):
     assert code == 1
     captured = capsys.readouterr()
     assert captured.out == f"{A}\n" and "hasn't started" in captured.err
+
+
+# explain
+
+
+def test_explain_says_iterm_supplies_the_state(monkeypatch, capsys):
+    put(A, WAITING, "/p/hydrogen", since=40.0, claude="c-9", prompt="fix it")
+    reply = {
+        "ok": True,
+        "tab_open": True,
+        "iterm_status": WAITING,
+        "focused": False,
+        "tab_colour": WAITING,
+    }
+    monkeypatch.setattr(control, "request", lambda msg: reply)
+    assert commands.explain("hydrogen", now=lambda: 100.0) == 0
+    out = capsys.readouterr().out
+    assert A in out and "✋ waiting for 1m" in out
+    assert "iTerm's Claude Code integration" in out
+    assert "claude --resume c-9" in out and "fix it" in out
+    assert "red" in out
+
+
+def test_explain_without_a_daemon_says_the_source_is_unknown(monkeypatch, capsys):
+    put(A, WORKING)
+
+    def down(msg):
+        raise control.Unavailable
+
+    monkeypatch.setattr(control, "request", down)
+    monkeypatch.setattr(launcher, "running", lambda: False)
+    assert commands.explain(A) == 0
+    out = capsys.readouterr().out
+    assert "unknown" in out and "daemon isn't running" in out
+    monkeypatch.setattr(launcher, "running", lambda: True)
+    commands.explain(A)
+    assert "too old" in capsys.readouterr().out
+
+
+def test_explain_says_hooks_supply_the_state_when_iterm_reports_nothing(monkeypatch, capsys):
+    put(A, WORKING)
+    reply = {
+        "ok": True,
+        "tab_open": True,
+        "iterm_status": None,
+        "focused": True,
+        "tab_colour": None,
+    }
+    monkeypatch.setattr(control, "request", lambda msg: reply)
+    commands.explain(A)
+    out = capsys.readouterr().out
+    assert "corral's hooks" in out and "you're looking at it" in out and "no colour" in out
+
+
+def test_explain_unknown_target(capsys):
+    assert commands.explain("nope") == 2
