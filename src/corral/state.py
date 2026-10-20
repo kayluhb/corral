@@ -70,6 +70,8 @@ def transition(
     name = event.get("hook_event_name")
     if prev is not None and _is_idle_prompt(event) and prev.state != WORKING:
         return prev  # only an interrupted turn goes idle; never hide waiting/done
+    if prev is not None and event.get("agent_id") and prev.state == WAITING and target != WAITING:
+        return prev  # a subagent's event doesn't answer the main session's prompt
     if prev is None or name == "SessionStart":
         prev = Session(iterm_id, "", "", "", now)
     since = prev.since if prev.state == target else now

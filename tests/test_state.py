@@ -173,6 +173,19 @@ def test_idle_prompt_only_clears_working():
         assert state.transition(prev, IDLE_PROMPT, "A", IDLE, 9.0) == prev
 
 
+def test_subagent_event_does_not_leave_waiting():
+    waiting = mk(st=WAITING, since=1.0)
+    for ev in (
+        {"hook_event_name": "PostToolUse", "agent_id": "x"},
+        {"hook_event_name": "Notification", "notification_type": "idle_prompt", "agent_id": "x"},
+    ):
+        assert state.transition(waiting, ev, "A", state.target_state(ev), 9.0) == waiting
+    main = {"hook_event_name": "PostToolUse"}
+    assert state.transition(waiting, main, "A", WORKING, 9.0).state == WORKING
+    sub = {"hook_event_name": "PostToolUse", "agent_id": "x"}
+    assert state.transition(mk(st=DONE), sub, "A", WORKING, 9.0).state == WORKING
+
+
 def test_status_variants_longest_first():
     ss = [
         mk("a", WAITING, cwd="/p/hydrogen"),

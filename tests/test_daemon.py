@@ -366,6 +366,25 @@ def test_hook_leaving_waiting_is_not_undone_by_an_unchanged_iterm_status():
     assert store.read("A").state == DONE
 
 
+def test_parallel_tool_leaving_waiting_shows_working_until_iterm_changes():
+    # Known heuristic gap: a main-agent PostToolUse (no agent_id) for a parallel tool
+    # leaves waiting while another tool still waits; corral can't tell it from an answer.
+    a, b = FakeSession("A"), FakeSession("B")
+    d = daemon.Daemon(FakeApp([a, b], current="B"))
+    put("A", WORKING)
+    a.status = WAITING
+    tick(d)
+    put("A", WORKING)  # parallel tool's PostToolUse; the prompt is still open
+    tick(d)
+    tick(d)
+    assert store.read("A").state == WORKING
+    a.status = WORKING
+    tick(d)
+    a.status = WAITING
+    tick(d)
+    assert store.read("A").state == WAITING
+
+
 def test_iterm_done_becomes_idle_once_seen_and_stays_idle():
     a = FakeSession("A")
     d = daemon.Daemon(FakeApp([a], current="A"))

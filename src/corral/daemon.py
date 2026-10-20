@@ -183,8 +183,9 @@ class Daemon:
         self.iterm_status[s.iterm_id] = status
         # iTerm stays done until the next prompt; keep the idle corral set once you looked.
         seen = status == state.DONE and s.state == state.IDLE
-        # Only you end a wait, so a hook that has left waiting is newer than an unchanged
-        # iTerm waiting: iTerm hasn't caught up with the same event yet.
+        # Heuristic: a hook that has left waiting is usually you answering, so it is newer
+        # than an unchanged iTerm waiting. Exception: a parallel tool's PostToolUse in the
+        # main agent (no agent_id) also leaves waiting; corral shows working until iTerm changes.
         answered = status == state.WAITING and s.state != state.WAITING
         if s.state == status or ((seen or answered) and not changed):
             return s
