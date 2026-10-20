@@ -105,6 +105,13 @@ def test_by_window_puts_entries_from_before_windows_were_recorded_together():
     assert [[k for k, _ in w] for w in windows] == [["x", "y"]]
 
 
+def test_by_window_puts_unknown_windows_with_old_entries():
+    old = {"cwd": "/p", "last_prompt": "", "order": 0, "last_seen": 1.0}
+    chosen = [("x", old), ("y", entry("/p", 1.0, 1, window="")), ("z", entry("/p", 1.0, 2))]
+    windows = restore.by_window(chosen)
+    assert [[k for k, _ in w] for w in windows] == [["x", "y"], ["z"]]
+
+
 def test_stopped_newest_first_skips_running_and_week_old_sessions():
     week = 7 * 24 * 3600
     history = {
@@ -135,19 +142,53 @@ def test_pick_opens_what_you_choose_without_asking(tmp_path, monkeypatch):
 
     monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
     now = restore.time.time()
-    restore.save({"a": entry("/p/a", now, window="A"), "b": entry("/p/b", now, 1, window="B")})
+    restore.save({"a": entry("/p/a", now - 60, window="A"), "b": entry("/p/b", now, 1, window="B")})
     monkeypatch.setattr(pick, "_fzf", lambda: "fzf")
-    chosen_line = "b\tb ...\n"
-    monkeypatch.setattr(
-        restore.subprocess,
-        "run",
-        lambda *a, **kw: type("Result", (), {"returncode": 0, "stdout": chosen_line})(),
-    )
+    calls = fake_fzf(monkeypatch, returncode=0, stdout="b\tb ...\n")
     monkeypatch.setattr("builtins.input", lambda *_: (_ for _ in ()).throw(AssertionError))
     opened = []
     monkeypatch.setattr(restore, "open_windows", opened.append)
     assert restore.run(choose_from_history=True) == 0
     assert [[k for k, _ in w] for w in opened[0]] == [["b"]]
+    argv, offered = calls[0]
+    assert "--multi" in argv
+    assert [line.split("\t")[0] for line in offered.splitlines()] == ["b", "a"]
+
+
+def fake_fzf(monkeypatch, returncode, stdout):
+    calls = []
+
+    def run(argv, input, **_):
+        calls.append((argv, input))
+        return type("Result", (), {"returncode": returncode, "stdout": stdout})()
+
+    monkeypatch.setattr(restore.subprocess, "run", run)
+    return calls
+
+
+def test_pick_cancelled_opens_nothing(tmp_path, monkeypatch):
+    from corral import pick
+
+    monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
+    restore.save({"a": entry("/p/a", restore.time.time())})
+    monkeypatch.setattr(pick, "_fzf", lambda: "fzf")
+    fake_fzf(monkeypatch, returncode=130, stdout="")
+    opened = []
+    monkeypatch.setattr(restore, "open_windows", opened.append)
+    assert restore.run(choose_from_history=True) == 0
+    assert opened == []
+
+
+def test_pick_with_only_week_old_history_skips_fzf(tmp_path, monkeypatch, capsys):
+    from corral import pick
+
+    monkeypatch.setenv("CORRAL_STATE_DIR", str(tmp_path / "state"))
+    restore.save({"a": entry("/p/a", restore.time.time() - restore.KEEP_SECONDS - 1)})
+    monkeypatch.setattr(pick, "_fzf", lambda: "fzf")
+    calls = fake_fzf(monkeypatch, returncode=0, stdout="")
+    assert restore.run(choose_from_history=True) == 0
+    assert calls == []
+    assert "Nothing to restore." in capsys.readouterr().out
 
 
 def test_pick_without_fzf_fails(tmp_path, monkeypatch, capsys):
@@ -170,3 +211,35 @@ def test_restore_opens_one_window_per_old_window(tmp_path, monkeypatch):
     monkeypatch.setattr(restore, "open_windows", opened.append)
     assert restore.run() == 0
     assert [[k for k, _ in w] for w in opened[0]] == [["a"], ["b"]]
+
+
+def test_open_windows_starts_each_window_then_adds_its_tabs(monkeypatch):
+    import asyncio
+    import sys
+    import types
+
+    calls = []
+
+    class Window:
+        @staticmethod
+        async def async_create(connection, command):
+            calls.append(("window", command))
+            return Window()
+
+        async def async_create_tab(self, command):
+            calls.append(("tab", command))
+
+    async def async_get_app(connection):
+        pass
+
+    iterm2 = types.SimpleNamespace(
+        Window=Window,
+        async_get_app=async_get_app,
+        run_until_complete=lambda main: asyncio.run(main(None)),
+    )
+    monkeypatch.setitem(sys.modules, "iterm2", iterm2)
+    monkeypatch.setattr(restore, "tab_command", lambda claude_id, cwd, shell: claude_id)
+    restore.open_windows(
+        [[("a1", entry("/p", 1.0)), ("a2", entry("/p", 1.0, 1))], [("b1", entry("/p", 1.0, 2))]]
+    )
+    assert calls == [("window", "a1"), ("tab", "a2"), ("window", "b1")]

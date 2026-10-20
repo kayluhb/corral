@@ -125,13 +125,11 @@ def save(history: dict) -> None:
         raise
 
 
-def choose(history: dict, running: set[str]) -> list[tuple[str, dict]] | None:
-    """fzf over every stopped session in the history, newest first; None when fzf is missing."""
+def choose(stopped: list[tuple[str, dict]], now: float) -> list[tuple[str, dict]] | None:
+    """fzf over the stopped sessions, in the order given; None when fzf is missing."""
     fzf = pick._fzf()
     if fzf is None:
         return None
-    now = time.time()
-    stopped = stopped_newest_first(history, running, now)
     result = subprocess.run(
         [
             fzf,
@@ -147,13 +145,13 @@ def choose(history: dict, running: set[str]) -> list[tuple[str, dict]] | None:
         stdout=subprocess.PIPE,
         text=True,
     )
-    return parse_choices(result.stdout, history) if result.returncode == 0 else []
+    return parse_choices(result.stdout, dict(stopped)) if result.returncode == 0 else []
 
 
 def confirm(batch: list[tuple[str, dict]]) -> bool:
     print(f"Reopen {len(batch)} claude session{'s' * (len(batch) != 1)}?")
     for _, v in batch:
-        print(f"  {state.project_name(v['cwd']):<24} {v['last_prompt']}")
+        print(f"  {state.project_name(v['cwd']):<24} {state.clean(v['last_prompt'], 80)}")
     return input("[y/N] ").strip().lower() == "y"
 
 
@@ -164,7 +162,12 @@ def run(choose_from_history: bool = False) -> int:
         print("Nothing to restore.")
         return 0
     if choose_from_history:
-        chosen = choose(history, running)
+        now = time.time()
+        stopped = stopped_newest_first(history, running, now)
+        if not stopped:
+            print("Nothing to restore.")
+            return 0
+        chosen = choose(stopped, now)
         if chosen is None:
             print("corral: fzf not found (brew install fzf)")
             return 1
