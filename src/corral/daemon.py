@@ -18,6 +18,7 @@ from corral import control, launcher, popover, restore, settings, state, store
 
 POLL_SECONDS = 0.5
 PICK_TIMEOUT = 600
+TICK_TIMEOUT = 10  # an iTerm reply lost to a dropped connection must not hang the daemon
 SUBMIT_DELAY = 0.1  # seconds between a sent prompt's paste and its Enter, so claude takes both
 CORRAL_BIN = os.environ.get("CORRAL_BIN", os.path.expanduser("~/.local/bin/corral"))
 COLORS = {
@@ -271,7 +272,8 @@ class Daemon:
         op = message.get("op")
         iterm_id = str(message.get("iterm_id", ""))
         if op == "ping":
-            return {"ok": True, "version": self.version}
+            iterm = not self.app.connection.websocket.closed
+            return {"ok": True, "version": self.version, "iterm": iterm}
         if op == "explain":
             return self.explain(iterm_id)
         if op == "send":
@@ -425,11 +427,15 @@ async def main(connection: iterm2.Connection) -> None:
     # Return once iTerm drops the connection: run_forever only notices after main
     # returns, and a daemon left running would hold the lock and block the restart.
     while not connection.websocket.closed:
-        try:
-            await daemon.tick()
-        except Exception as exc:  # keep the daemon alive; surface in Script Console
-            print(f"corral tick error: {exc!r}")
+        await guarded_tick(daemon)
         await asyncio.sleep(POLL_SECONDS)
+
+
+async def guarded_tick(daemon: Daemon, timeout: float = TICK_TIMEOUT) -> None:
+    try:
+        await asyncio.wait_for(daemon.tick(), timeout)
+    except Exception as exc:  # keep the daemon alive; surface in Script Console
+        print(f"corral tick error: {exc!r}")
 
 
 def run() -> None:

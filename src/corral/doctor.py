@@ -74,11 +74,14 @@ RESTART = "pkill -f 'corral.cli daemon' to restart it"
 
 def check_daemon() -> Check:
     try:
-        running = control.request({"op": "ping"}).get("version")
+        reply = control.request({"op": "ping"})
+        running = reply.get("version")
     except control.Unavailable:
         if daemon_process():
             return False, f"an older daemon is running; {RESTART}"
         return False, "not running; it starts with the next claude event in iTerm"
+    if reply.get("iterm") is False:  # older daemons don't say
+        return False, f"it lost its iTerm connection; {RESTART}"
     installed = control.version()
     if running != installed:
         old = f"corral {running}" if running else "an older corral"
