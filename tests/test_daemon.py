@@ -78,6 +78,11 @@ class FakeTab:
         self.titles.append(title)
 
 
+class FakeConnection:
+    def __init__(self):
+        self.websocket = type("Websocket", (), {"closed": False})()
+
+
 class FakeApp:
     def __init__(self, sessions, current, tabs=None, windows=None):
         """tabs: lists of sessions sharing a tab (splits); default one tab per session.
@@ -89,6 +94,7 @@ class FakeApp:
         windows = windows or [tabs or [[s] for s in sessions]]
         self.window_tabs = [[FakeTab(group) for group in w] for w in windows]
         self.tab_list = [tab for w in self.window_tabs for tab in w]
+        self.connection = FakeConnection()
 
     def get_session_by_id(self, session_id):
         return self.sessions.get(session_id)
@@ -482,7 +488,30 @@ def test_ping_reports_the_version_the_daemon_started_on(monkeypatch):
     monkeypatch.setattr(control_module, "version", lambda: "1.2.0")
     d = daemon.Daemon(FakeApp([FakeSession("A")], current="A"))
     monkeypatch.setattr(control_module, "version", lambda: "9.9.9")  # an upgrade on disk
-    assert control(d, {"op": "ping"}) == {"ok": True, "version": "1.2.0"}
+    assert control(d, {"op": "ping"}) == {"ok": True, "version": "1.2.0", "iterm": True}
+
+
+def test_ping_reports_a_lost_iterm_connection():
+    app = FakeApp([FakeSession("A")], current="A")
+    d = daemon.Daemon(app)
+    app.connection.websocket.closed = True  # iTerm quit or restarted
+    assert control(d, {"op": "ping"})["iterm"] is False
+
+
+def test_a_hung_tick_times_out_and_frees_the_lock(monkeypatch, capsys):
+    d = daemon.Daemon(FakeApp([FakeSession("A")], current="A"))
+
+    async def hang():
+        await asyncio.Event().wait()  # an iTerm reply that never comes
+
+    monkeypatch.setattr(d, "_tick", hang)
+
+    async def go():
+        await asyncio.wait_for(daemon.guarded_tick(d, timeout=0.01), 1)
+        assert not d.lock.locked()
+
+    asyncio.run(go())
+    assert "TimeoutError" in capsys.readouterr().out
 
 
 def test_explain_reports_what_iterm_says_about_the_session():

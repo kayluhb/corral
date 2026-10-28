@@ -93,6 +93,14 @@ def test_daemon_check_flags_a_daemon_running_other_code(monkeypatch):
     assert "runs an older corral" in doctor.check_daemon()[1]
 
 
+def test_daemon_check_flags_a_daemon_that_lost_iterm(monkeypatch):
+    monkeypatch.setattr(control, "version", lambda: "1.2.0")
+    reply = {"ok": True, "version": "1.2.0", "iterm": False}
+    monkeypatch.setattr(control, "request", lambda msg: reply)
+    ok, detail = doctor.check_daemon()
+    assert not ok and "lost its iTerm connection" in detail and "pkill" in detail
+
+
 def test_report_prints_each_check_and_fails_if_any_does(capsys):
     checks = [("hooks", lambda: (True, "")), ("daemon", lambda: (False, "not running"))]
     assert doctor.report(checks) == 1
